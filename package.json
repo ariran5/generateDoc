@@ -1,0 +1,19 @@
+{
+  "name": "generatedoc",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx --env-file=.env index.mts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "openai": "^4.71.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
