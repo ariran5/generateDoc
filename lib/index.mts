@@ -139,7 +139,7 @@ function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaul
   };
 
   return menu.reduce<Record<string, SidebarItem[]>>((acc, item) => {
-    acc[item.base] = traverse(item.items)
+    acc[item.base] = traverse(item.items, item.base)
     return acc
   }, {})
 }
