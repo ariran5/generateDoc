@@ -15,20 +15,23 @@ const argv = minimist<{
   help?: boolean
   model?: OpenAI.Chat.ChatModel
   extension?: string
+  all?: boolean
 }>(process.argv.slice(2), {
   default: {
     help: false,
     config: 'neuro-docs.config.ts',
     out: 'docs',
     model: 'gpt-4o' as OpenAI.Chat.ChatModel,
-    extension: '.md'
+    extension: '.md',
+    all: false
   },
   alias: {
     h: 'help',
     t: 'config',
     o: 'out',
     m: 'model',
-    e: '.md',
+    e: 'extension',
+    a: 'all'
   },
   string: ['_'],
 })
@@ -39,6 +42,7 @@ const {
   out = 'docs',
   model,
   extension: e,
+  all,
 } = argv
 
 const extension = e!
@@ -190,6 +194,7 @@ function safetyReadFileContent(filePath: string): string | undefined {
   }
 }
 
+const withQuestions = !all
 
 async function run(){
 
@@ -218,11 +223,11 @@ async function run(){
         // Если нет файла, то создаем
         if (!fs.existsSync(filePath)) {
           // Записываем содержимое в файл
-          const result = await prompts({
+          const result = withQuestions ? await prompts({
             type: 'confirm',
             name: 'value',
             message: `Запускаем генерацию  ${item.title}?`
-          })
+          }): {value: true}
   
           if (!result.value) {
             process.exit(1);
@@ -250,11 +255,11 @@ async function run(){
             fs.writeFileSync(filePath, fileContent, 'utf8');
             console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
     
-            needEdit = (await prompts({
+            needEdit = withQuestions ? (await prompts({
               type: 'confirm',
               name: 'value',
               message: `Изменить эту генерацию ${item.title}?`
-            })).value
+            })).value : false;
   
             if (needEdit) {
               generatedContentForChange = fileContent
