@@ -8,6 +8,7 @@ import prompts from 'prompts';
 import minimist from 'minimist';
 import { updateUsage, } from './usage.mjs'
 import { importUserFile } from './importFromUserFolder.mjs';
+import { encoding_for_model } from "tiktoken";
 
 const argv = minimist<{
   config?: string
@@ -36,6 +37,7 @@ const argv = minimist<{
   string: ['_'],
 })
 
+
 const {
   config = 'doc-generator.ts',
   help,
@@ -44,6 +46,14 @@ const {
   extension: e,
   all,
 } = argv
+
+// @ts-ignore
+const encoderTiktoken = encoding_for_model(model!)
+function countTokens(text: string): number {
+  const encoded = encoderTiktoken.encode(text);
+  return encoded.length;
+}
+
 
 const extension = e!
 
@@ -242,7 +252,7 @@ async function run(){
   
             // Генерируем содержание с помощью OpenAI
             const prompt = question(item, menupath, dontUsePreviousFilesAsContext ? []: history, {sidebar: SidebarMenu, sidebarWithFilenames: SidebarMenuWithFilenames})
-            console.log('==================== Размер контекста: ' + prompt.length);
+            console.log('==================== Размер контекста: ' + prompt.length + `(${countTokens(prompt)}) токенов`);
   
             const promptFinal = needEdit ? (
               prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${safetyReadFileContent(filePath) || generatedContentForChange})
