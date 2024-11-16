@@ -62,18 +62,20 @@ export type SidebarItem = {
   rel?: string
   target?: string
 }
+export type QuestionFN = (
+  item: ThemeMenuItem,
+  menupath: [Menu, ...MenuItem[]],
+  history: HistoryItem[],
+  sidebar: {
+    sidebar: Record<string, SidebarItem[]>,
+    sidebarWithFilenames: Record<string, SidebarItem[]>
+  }
+) => string
+
 
 // Пример обновленного меню документации с указанием директорий
 const module = (await importUserFile(config)) as {
-  question: (
-    item: ThemeMenuItem,
-    menupath: MenuItem[],
-    history: HistoryItem[],
-    sidebar: {
-      sidebar: Record<string, SidebarItem[]>,
-      sidebarWithFilenames: Record<string, SidebarItem[]>
-    }
-  ) => string,
+  question: QuestionFN,
   menu: Menu[]
 };
 
@@ -192,7 +194,7 @@ function safetyReadFileContent(filePath: string): string | undefined {
 async function run(){
 
   // Рекурсивная функция для генерации документации
-  async function generateDocumentation(items: MenuItem[], baseDir: string = '', menupath: MenuItem[]): Promise<void> {
+  async function generateDocumentation(items: MenuItem[], baseDir: string = '', menupath: [Menu, ...MenuItem[]]): Promise<void> {
     for (const item of items) {
       if ('content' in item) {
         const { title, content, dir, filename, items: subItems } = item;
@@ -226,7 +228,7 @@ async function run(){
             process.exit(1);
           }
   
-          const dontUsePreviousFilesAsContext = [...menupath, item].some(item => item.dontUsePreviousFilesAsContext)
+          const dontUsePreviousFilesAsContext = [...menupath, item].some(item => 'dontUsePreviousFilesAsContext' in item && item.dontUsePreviousFilesAsContext)
   
           let needEdit = false;
           let generatedContentForChange = ''
@@ -259,7 +261,7 @@ async function run(){
               continue;
             }
     
-            const dontAddToContext = [...menupath, item].some(item => item.dontAddToContext)
+            const dontAddToContext = [...menupath, item].some(item => 'dontAddToContext' in item && item.dontAddToContext)
     
             if (!dontAddToContext) {
               history.push({
@@ -270,7 +272,7 @@ async function run(){
             }
           } while (needEdit)
         } else {
-          const dontAddToContext = [...menupath, item].some(item => item.dontAddToContext)
+          const dontAddToContext = [...menupath, item].some(item => 'dontAddToContext' in item && item.dontAddToContext)
           // Восстанавливаем контекст если файл уже есть
           if (!dontAddToContext) {
             history.push({
@@ -312,7 +314,7 @@ async function run(){
 
   for (const item of menu) {
     // Запускаем генерацию документации
-    await generateDocumentation(item.items, item.base || '', []).then(() => {
+    await generateDocumentation(item.items, item.base || '', [item]).then(() => {
       console.log('Процесс генерации завершен.');
     }).catch((error) => {
       console.error('Произошла ошибка при генерации документации:', error);
