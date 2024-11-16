@@ -1,9 +1,14 @@
 {
-  "name": "generatedoc",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "@ariran/neuro-docs",
+  "version": "1.2.0",
+  "main": "./lib/index.mts",
+  "bin": {
+    "neuro-docs": "./lib/index.mts"
+  },
   "scripts": {
-    "start": "tsx --env-file=.env index.mts",
+    "start": "tsx --env-file=.env ./lib/index.mts",
+    "build": "tsc",
+    "qwe:publish": "npm publish --access public",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
@@ -12,8 +17,21 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "minimist": "^1.2.8",
     "openai": "^4.71.1",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
-  }
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/minimist": "^1.2.5",
+    "@types/prompts": "^2.4.9"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "package.json"
+  ]
+
 }
