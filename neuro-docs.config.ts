@@ -1,14 +1,14 @@
-import { HistoryItem, SidebarItem } from './lib/index.mjs'
+import { HistoryItem, QuestionFN, SidebarItem } from './lib/index.mjs'
 import { MenuItem, ThemeMenuItem } from './lib/json.mjs'
 
 export { json as menu } from './test-json.mjs'
 
 const divider = '---%%%---%%%---'
 
-export const question = (
-  item: ThemeMenuItem,
-  menupath: MenuItem[],
-  history: HistoryItem[],
+export const question: QuestionFN = (
+  item,
+  menupath,
+  history,
   sidebar: {
     sidebar: Record<string, SidebarItem[]>,
     sidebarWithFilenames: Record<string, SidebarItem[]>
@@ -38,7 +38,7 @@ ${
   history.map(item => `
 Тема: ${item.item.title}
 Путь до файла: ${item.filePath}
-Контент: ${item.text}
+Контент: ${item.optimizedContext || item.text}
 
 ${divider}
 
@@ -47,6 +47,6 @@ ${divider}
 
 Теперь необходимо сгенерировать контент для темы: ${item.title},
 и вот к ней комментарий:
-${menupath.length ? menupath.map(item => item.baseContent).join('\n'): ''}
+${menupath.length ? menupath.map(item => 'baseContent' in item && item.baseContent).filter(i => i).join('\n'): ''}
 ${item.content}
 `

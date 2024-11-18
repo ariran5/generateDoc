@@ -19,6 +19,11 @@ export type ThemeMenuItem = {
 type _Shared = {
   dontUsePreviousFilesAsContext?: boolean; // Использовать ли прошлые файлы как контекст
   dontAddToContext?: boolean; // Добавлять ли эту категорию в контекст
+  /**
+   * если строит true, то мы получаем у chatGPT сокращенную версию для использования в контексте для следующих сообщений. 
+   * нужно только если используется большой контекст, в противном случае скушает лишние деньги
+   */
+  optimizedContext?: boolean;
 }
 
 export interface Menu {

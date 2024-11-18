@@ -9,6 +9,8 @@ import minimist from 'minimist';
 import { updateUsage, } from './usage.mjs'
 import { importUserFile } from './importFromUserFolder.mjs';
 import { encoding_for_model } from "tiktoken";
+import { extractShortContext, template } from './shortContext.mjs';
+import pc from 'picocolors';
 
 const argv = minimist<{
   config?: string
@@ -17,6 +19,7 @@ const argv = minimist<{
   model?: OpenAI.Chat.ChatModel
   extension?: string
   all?: boolean
+  debug?: boolean
 }>(process.argv.slice(2), {
   default: {
     help: false,
@@ -24,7 +27,8 @@ const argv = minimist<{
     out: 'docs',
     model: 'gpt-4o' as OpenAI.Chat.ChatModel,
     extension: '.md',
-    all: false
+    all: false,
+    debug: false
   },
   alias: {
     h: 'help',
@@ -45,6 +49,7 @@ const {
   model,
   extension: e,
   all,
+  debug,
 } = argv
 
 // @ts-ignore
@@ -57,9 +62,8 @@ function countTokens(text: string): number {
 
 const extension = e!
 
-console.log('Модель: ' + model)
+console.log(pc.bgGreen(pc.white('Модель: ' + model)))
 
-console.log(process.cwd())
 const __dirname = process.cwd();
 
 const client = new OpenAI({
@@ -109,6 +113,13 @@ const defaultObject: GenerateSidebarOptions = {
   withIndexFile: false
 }
 
+function addLastSymbolIfMissing(str: string, symbol: string) {
+  if (!str.endsWith(symbol)) {
+    return str + symbol;
+  }
+  return str;
+}
+
 function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaultObject): Record<string, SidebarItem[]> {
   const traverse = (items: MenuItem[], baseDir = ''): SidebarItem[] => {
     return items.map(item => {
@@ -139,7 +150,8 @@ function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaul
   };
 
   return menu.reduce<Record<string, SidebarItem[]>>((acc, item) => {
-    acc[item.base] = traverse(item.items, item.base)
+    const base = addLastSymbolIfMissing(item.base, '/')
+    acc[base] = traverse(item.items, base)
     return acc
   }, {})
 }
@@ -164,10 +176,10 @@ async function generateText(prompt: string,): Promise<string | null> {
     } = response.usage ?? {}
 
     if (response.usage) {
-      updateUsage(response.usage)
+      updateUsage(response.usage, model!)
     }
 
-    console.log(`Промпт общей длиной ${prompt.length}, входящих/исходящий токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
+    console.log(`Промпт общей длиной ${prompt.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
     return response.choices[0].message.content;
   } catch (error) {
     console.error('Ошибка при генерации текста:', error);
@@ -195,6 +207,7 @@ export type HistoryItem = {
   item: MenuItem
   text: string
   filePath: string
+  optimizedContext?: string
 }
 
 
@@ -208,10 +221,25 @@ const withQuestions = !all
 
 async function run(){
 
+  interface GenerateProps {
+    items: MenuItem[]
+    baseDir: string
+    menupath: [Menu, ...MenuItem[]]
+  }
+
+  function findValueByKeyFromMenuPath<T extends keyof Menu | keyof MenuItem>(path: [Menu, ...MenuItem[]], key: T): boolean {
+    // @ts-ignore
+    return Boolean(path.toReversed().find(item => key in item)?.[key])
+  }
+
   // Рекурсивная функция для генерации документации
-  async function generateDocumentation(items: MenuItem[], baseDir: string = '', menupath: [Menu, ...MenuItem[]]): Promise<void> {
+  async function generateDocumentation({items, baseDir, menupath}: GenerateProps): Promise<void> {
     for (const item of items) {
-      if ('content' in item) {
+      const isContentItem = 'content' in item;
+      const dontUsePreviousFilesAsContext = findValueByKeyFromMenuPath([...menupath, item], 'dontUsePreviousFilesAsContext')
+      const isOptimizedContext = findValueByKeyFromMenuPath([...menupath, item], 'optimizedContext')
+
+      if (isContentItem) {
         const { title, content, dir, filename, items: subItems } = item;
         console.log('Начата генерация: ' + title);
   
@@ -243,7 +271,6 @@ async function run(){
             process.exit(1);
           }
   
-          const dontUsePreviousFilesAsContext = [...menupath, item].some(item => 'dontUsePreviousFilesAsContext' in item && item.dontUsePreviousFilesAsContext)
   
           let needEdit = false;
           let generatedContentForChange = ''
@@ -255,14 +282,25 @@ async function run(){
             console.log('==================== Размер контекста: ' + prompt.length + `(${countTokens(prompt)}) токенов`);
   
             const promptFinal = needEdit ? (
-              prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${safetyReadFileContent(filePath) || generatedContentForChange})
+              prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${generatedContentForChange})
               и теперь нужно изменить его, а именно, ` + (await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'})).prompt
             ) : prompt;
-    
+            
             const generatedContent = await generateText(promptFinal) || 'Не удалось сгенерировать текст.';
             const fileContent = `${generatedContent}`;
+
+            const optimizedContextContent = isOptimizedContext ? await generateText(`
+            У меня есть файл, в этом файле есть такой текст:
+            ${fileContent}
+
+            Расскажи коротко о том, что в этом файле, но не упускай важные моменты.
+            `): undefined
     
-            fs.writeFileSync(filePath, fileContent, 'utf8');
+            fs.writeFileSync(
+              filePath,
+              fileContent + (isOptimizedContext ? template(optimizedContextContent!): ''),
+              'utf8'
+            );
             console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
     
             needEdit = withQuestions ? (await prompts({
@@ -276,32 +314,61 @@ async function run(){
               continue;
             }
     
-            const dontAddToContext = [...menupath, item].some(item => 'dontAddToContext' in item && item.dontAddToContext)
+          // @ts-ignore
+          const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
     
             if (!dontAddToContext) {
-              history.push({
+              const historyItem: HistoryItem = {
                 item,
                 filePath,
-                text: fileContent
-              })
+                text: fileContent,
+              }
+              
+              if (isOptimizedContext && optimizedContextContent) {
+                historyItem.optimizedContext = optimizedContextContent
+              }
+
+              history.push(historyItem)
             }
           } while (needEdit)
         } else {
-          const dontAddToContext = [...menupath, item].some(item => 'dontAddToContext' in item && item.dontAddToContext)
+          // @ts-ignore
+          const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
           // Восстанавливаем контекст если файл уже есть
           if (!dontAddToContext) {
-            history.push({
+            const fileContent = safetyReadFileContent(filePath)!
+
+            const historyItem: HistoryItem = {
               item,
               filePath,
-              text: safetyReadFileContent(filePath)!
-            })
-            console.log('\x1b[33m%s\x1b[0m', `Восстановлен контекст ${item.title} из файла ` + filePath)
+              text: fileContent,
+            }
+            const match = extractShortContext(fileContent)
+
+            if (match) {
+              const [fullMatch, optimizedContextContent] = match
+
+              historyItem.text = historyItem.text.replace(fullMatch, '')
+
+
+              if (isOptimizedContext) {
+                historyItem.optimizedContext = optimizedContextContent.trim()
+              }
+            }
+
+            history.push(historyItem)
+
+            console.log(pc.yellow(`Восстановлен контекст ${item.title} из файла ` + filePath))
           }
         }
   
         // Обрабатываем подуровни, если они существуют
         if (subItems && subItems.length > 0) {
-          await generateDocumentation(subItems, finalURL, [...menupath, item]);
+          await generateDocumentation({
+            items: subItems,
+            baseDir: finalURL,
+            menupath: [...menupath, item]
+          });
         }
       } else {
         const { title, dir, items: subItems } = item;
@@ -318,7 +385,11 @@ async function run(){
         }
   
         if (subItems && subItems.length > 0) {
-          await generateDocumentation(subItems, finalURL, [...menupath, item]);
+          await generateDocumentation({
+            items: subItems,
+            baseDir: finalURL,
+            menupath: [...menupath, item]
+          });
         }
       }
       
@@ -326,17 +397,33 @@ async function run(){
   }
 
   const history: HistoryItem[] = []
+  const tasks: Promise<void>[] = []
+
 
   for (const item of menu) {
     // Запускаем генерацию документации
-    await generateDocumentation(item.items, item.base || '', [item]).then(() => {
-      console.log('Процесс генерации завершен.');
-    }).catch((error) => {
-      console.error('Произошла ошибка при генерации документации:', error);
-    });
+    const task = generateDocumentation({
+      items: item.items,
+      baseDir: item.base || '',
+      menupath: [item]
+    })
+      .then(() => {
+        console.log('Процесс генерации завершен.');
+      }).catch((error) => {
+        console.error('Произошла ошибка при генерации документации:', error);
+      });
+
+    tasks.push(task)
+
+    if (!all) {
+      await task
+    }
+      
 
     history.length = 0
   }
+
+  await Promise.all(tasks)
 }
 
 run()

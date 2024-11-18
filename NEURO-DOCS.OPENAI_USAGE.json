@@ -1,7 +1,12 @@
 {
  "openAI": {
-  "completion_tokens": 0,
-  "prompt_tokens": 0,
-  "total_tokens": 0
+  "completion_tokens": 4085,
+  "prompt_tokens": 6473,
+  "total_tokens": 10558,
+  "gpt-4o": {
+   "completion_tokens": 2095,
+   "prompt_tokens": 4847,
+   "total_tokens": 6942
+  }
  }
 }
