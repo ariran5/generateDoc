@@ -285,8 +285,6 @@ async function run(){
       //   Promise.resolve(choices.filter(choice => choice.title.toLowerCase().includes(input.toLowerCase())))
     })
   ): null;
-
-  console.log(itemForChange?.selectedFilename)
   
   // Рекурсивная функция для генерации документации
   async function generateDocumentation({items, baseDir, menupath}: GenerateProps): Promise<void> {
@@ -335,9 +333,11 @@ async function run(){
 
             if (itemForChange?.selectedFilename) {
               const content = safetyReadFileContent(filePath)?.trim() ?? ''
+              const shortContext = extractShortContext(content)?.[0] ?? ''
+              const finalContent = shortContext ? content.replace(shortContext, ''): content
               if (content) {
                 needEdit = true;
-                generatedContentForChange = extractShortContext(content)?.[0] ?? ''
+                generatedContentForChange = finalContent
               }
             }
     

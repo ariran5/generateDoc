@@ -1,12 +1,13 @@
 {
   "name": "@ariran/neuro-docs",
-  "version": "1.7.0",
+  "version": "1.8.1",
   "main": "./lib/index.mts",
   "bin": {
     "neuro-docs": "./lib/index.mts"
   },
   "scripts": {
     "start": "tsx --env-file=.env ./lib/index.mts",
+    "start:c": "tsx --env-file=.env ./lib/index.mts -c",
     "build": "tsc",
     "qwe:publish": "npm publish --access public",
     "test": "echo \"Error: no test specified\" && exit 1"
