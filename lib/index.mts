@@ -1,16 +1,14 @@
 #!/usr/bin/env tsx --env-file=.env
 import fs from 'fs';
 import path from 'path';
-import OpenAI from 'openai';
 import { Menu, MenuItem, ThemeMenuItem } from './json.mjs';
-// import { json,} from '../json.mjs'
+import OpenAI from 'openai';
 import prompts from 'prompts';
 import minimist from 'minimist';
-import { updateUsage, } from './usage.mjs'
 import { importUserFile } from './importFromUserFolder.mjs';
-import { encoding_for_model } from "tiktoken";
 import { extractShortContext, template } from './shortContext.mjs';
 import pc from 'picocolors';
+import { generateText } from './openAIClient.mjs'
 
 const argv = minimist<{
   config?: string
@@ -61,23 +59,11 @@ if (all && changeMode) {
   process.exit(1);
 }
 
-// @ts-ignore
-const encoderTiktoken = encoding_for_model(model!)
-function countTokens(text: string): number {
-  const encoded = encoderTiktoken.encode(text);
-  return encoded.length;
-}
-
-
 const extension = e!
 
 console.log(pc.bgGreen(pc.white('Модель: ' + model)))
 
 const __dirname = process.cwd();
-
-const client = new OpenAI({
-  apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
-});
 
 export type SidebarItem = {
   text?: string
@@ -163,37 +149,6 @@ function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaul
     acc[base] = traverse(item.items, base)
     return acc
   }, {})
-}
-
-// Генерация текста с помощью OpenAI
-async function generateText(prompt: string,): Promise<string | null> {
-  try {
-    const response = await client.chat.completions.create({
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        },
-      ],
-      model: model!,
-    });
-
-    const {
-      completion_tokens,
-      prompt_tokens,
-      total_tokens,
-    } = response.usage ?? {}
-
-    if (response.usage) {
-      updateUsage(response.usage, model!)
-    }
-
-    console.log(`Промпт общей длиной ${prompt.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
-    return response.choices[0].message.content;
-  } catch (error) {
-    console.error('Ошибка при генерации текста:', error);
-    return null;
-  }
 }
 
 // Убедитесь, что базовая директория out существует
@@ -344,14 +299,13 @@ async function run(){
             do {
               // Генерируем содержание с помощью OpenAI
               const prompt = question(item, menupath, dontUsePreviousFilesAsContext ? []: history, {sidebar: SidebarMenu, sidebarWithFilenames: SidebarMenuWithFilenames})
-              console.log('==================== Размер контекста: ' + prompt.length + `(${countTokens(prompt)}) токенов`);
     
               const promptFinal = needEdit ? (
                 prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${generatedContentForChange})
                 и теперь нужно изменить его, а именно, ` + (await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'})).prompt
               ) : prompt;
               
-              const fileContent = await generateText(promptFinal)
+              const fileContent = await generateText(promptFinal, model!)
               if (!fileContent) {
                 console.log('Не удачная генерация, какая-то проблема')
                 process.exit(1);
@@ -362,7 +316,7 @@ async function run(){
               ${fileContent}
   
               Расскажи коротко о том, что в этом файле, но не упускай важные моменты.
-              `): undefined
+              `, model!): undefined
       
               fs.writeFileSync(
                 filePath,
