@@ -2,32 +2,42 @@ import OpenAI from 'openai';
 import { updateUsage } from './usage.mjs';
 import { encoding_for_model, Tiktoken, TiktokenModel } from "tiktoken";
 
-
+// Инициализация клиента OpenAI с использованием API ключа из переменных окружения
 export const client = new OpenAI({
   apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
 
-let encoderTiktoken: Tiktoken
-export function countTokens(text: string): number {
-  const encoded = encoderTiktoken.encode(text);
+const encoderTiktoken: {[key in ChatModel]?: Tiktoken} = {}
+
+/**
+ * Подсчет количества токенов в переданном тексте
+ * @param text - Текст для подсчета токенов
+ * @returns Количество токенов
+ */
+export function countTokens(text: string, model: ChatModel): number {
+  const instance = encoderTiktoken[model] ? encoderTiktoken[model]: (encoderTiktoken[model] = encoding_for_model(model as unknown as TiktokenModel));
+  const encoded = instance.encode(text);
   return encoded.length;
 }
 
-// Генерация текста с помощью OpenAI
-export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel, ctx?: string): Promise<string | null> {
+/**
+ * Генерация текста с помощью модели OpenAI
+ * @param prompt - Промпт для генерации ответа
+ * @param model - Модель OpenAI для генерации текста
+ * @param system - Дополнительный системный контекст
+ * @returns Сгенерированный текст, либо null в случае ошибки
+ */
+export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel, system?: string): Promise<string | null> {
   if (!prompt.trim().length) {
     throw new Error('Invalid prompt');
   }
-  if (!encoderTiktoken) {
-    encoderTiktoken = encoding_for_model(model as unknown as TiktokenModel)
-  }
-  console.log(`Начат запрос. Размер контекста ${prompt.length + (ctx?.length ?? 0)} символов и ${countTokens(prompt + (ctx ?? ''))} токенов`)
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
 
-  if (ctx) {
+  if (system) {
     messages.push({
-      role: 'assistant', content: ctx
+      role: model.includes('o1') ? 'assistant': 'system',
+      content: system,
     })
   }
 
@@ -53,6 +63,41 @@ export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel,
     }
 
     console.log(`Промпт общей длиной ${prompt.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error('Ошибка при генерации текста:', error);
+    return null;
+  }
+}
+
+export type Messages = OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+export type ChatModel = OpenAI.Chat.ChatModel
+
+/**
+ * Генерация текста с использованием размещенных сообщений
+ * @param messages - Сообщения для обработки моделью
+ * @param model - Модель OpenAI для генерации текста
+ * @returns Сгенерированный текст, либо null в случае ошибки
+ */
+export async function generateTextAsMessages(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], model: OpenAI.Chat.ChatModel): Promise<string | null> {
+  try {
+    const response = await client.chat.completions.create({
+      messages,
+      model: model,
+    });
+
+    const {
+      completion_tokens,
+      prompt_tokens,
+      total_tokens,
+    } = response.usage ?? {}
+
+    if (response.usage) {
+      updateUsage(response.usage, model!)
+    }
+    const allPrompts = messages.reduce((acc, message) => acc + message.content, '')
+
+    console.log(`Промпт общей длиной ${allPrompts.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
     return response.choices[0].message.content;
   } catch (error) {
     console.error('Ошибка при генерации текста:', error);
