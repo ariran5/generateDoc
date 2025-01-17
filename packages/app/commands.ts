@@ -1,5 +1,6 @@
 
 import { promises as fs } from 'fs';
+import { zodFunction, zodResponseFormat, } from 'openai/helpers/zod'
 import * as path from 'path';
 import { addFileToContext, removeFileFromContext } from '../../utils/context';
 import { ChatModel, countTokens, generateTextAsMessages, Messages } from '../../lib/openAIClient.mts';
@@ -7,6 +8,8 @@ import { filesAsSmallDescription, systemCommandsMessage, systemLanguageMessage }
 import inquirer from 'inquirer';
 import pc from 'picocolors'
 import { setTimeout } from 'timers/promises';
+import { z } from 'zod';
+import { getProjectFiles } from '../../utils/dir';
 
 // options
 const canMutate = true
@@ -56,7 +59,14 @@ export interface SplitCommand {
 
 export type Command = MetaCommand | FileCommand | InfoCommand | SplitCommand;
 
-export async function executeCommands(commands: Command[], model: ChatModel, chatHistory: Messages) {
+export async function executeCommands(
+  commands: Command[],
+  model: ChatModel,
+  chatHistory: Messages,
+  options: {base: string,}
+) {
+  const {base = './', } = options;
+
   for (const command of commands) {
     await setTimeout(400)
 
@@ -117,7 +127,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model,)
+          const newCommands = await generateCommands(chatHistory, model,{base})
           
           chatHistory.push(
             {
@@ -126,7 +136,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
             }
           );
           
-          await executeCommands(newCommands, model, m)
+          await executeCommands(newCommands, model, m, options)
           break
         }
         case 'split_into_small_tasks': {
@@ -148,7 +158,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model,)
+          const newCommands = await generateCommands(chatHistory, model,{base})
 
           chatHistory.push(
             {
@@ -157,7 +167,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
             }
           );
 
-          await executeCommands(newCommands, model, m)
+          await executeCommands(newCommands, model, m, options)
           break;
         }
         case 'next': {
@@ -171,7 +181,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model,)
+          const newCommands = await generateCommands(chatHistory, model, {base})
 
           chatHistory.push(
             {
@@ -184,13 +194,13 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
             }
           );
 
-          await executeCommands(newCommands, model, m)
+          await executeCommands(newCommands, model, m, options)
           break;
         }
 
         case 'create':
         case 'update': {
-          const filePath = path.resolve(command.filePath);
+          const filePath = path.resolve(path.join(base, command.filePath));
 
           if (!command.prompt) {
             return
@@ -204,7 +214,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
                 content: systemLanguageMessage(),
               },
               ...chatHistory,
-              filesContext(),
+              filesContext(await getProjectFiles({base})),
               {
                 role: 'system',
                 content: `
@@ -226,9 +236,14 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
               },
               {
                 role: 'user',
-                content: command.prompt
+                content: command.prompt,
               }
-            ], model)
+            ],
+            model,
+            // zodResponseFormat(
+            //   z.object()
+            // )
+          )
   
             if (!res) {
               return
@@ -250,7 +265,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
         }
 
         case 'read': {
-          const filePath = path.resolve(command.filePath);
+          const filePath = path.resolve(path.join(base, command.filePath));
 
           const content = await fs.readFile(filePath, 'utf-8');
 
@@ -268,7 +283,7 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
           
 
         case 'delete': {
-          const filePath = path.resolve(command.filePath);
+          const filePath = path.resolve(path.join(base, command.filePath));
           
           if (canMutate) {
             await fs.unlink(filePath);
@@ -303,15 +318,16 @@ export async function executeCommands(commands: Command[], model: ChatModel, cha
 
 // executeCommands(commands).catch(err => console.error(err));
 
-const filesContext = (): Messages[number] => {
+const filesContext = (files: string[]): Messages[number] => {
 
   return {
     role: 'system',
-    content: filesAsSmallDescription(),
+    content: filesAsSmallDescription(files),
   }
 }
 
-async function generateCommands(messages: Messages, model: ChatModel) {
+async function generateCommands(messages: Messages, model: ChatModel, options: {base: string}) {
+  const {base} = options
   const systemMessages: Messages = [
     {
       role: 'system',
@@ -320,7 +336,7 @@ async function generateCommands(messages: Messages, model: ChatModel) {
   ]
 
   const allMessages: Messages = [
-    filesContext(),
+    filesContext(await getProjectFiles({base})),
     ...messages,
     ...systemMessages,
   ]

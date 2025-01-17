@@ -1,13 +1,17 @@
-import OpenAI from 'openai';
+import { GigaChat } from './gigachat/index.js';
 import { updateUsage } from './usage.mjs';
 import { encoding_for_model, Tiktoken, TiktokenModel } from "tiktoken";
-import { ChatCompletionCreateParamsBase } from 'openai/src/resources/chat/completions.js';
-import { ReadStream } from 'fs';
+import { ICompletionRequest } from 'gigachat-node/interfaces/completion.js';
 
 // Инициализация клиента OpenAI с использованием API ключа из переменных окружения
-export const client = new OpenAI({
-  apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
-});
+export const client = new GigaChat(
+  '13573c4b-129f-46d6-9dec-c4b6e129aa2c',
+  '31ae7415-34c1-4836-b7ec-a805682c0436',
+  true,
+  true,
+  true,
+  false
+);
 
 const encoderTiktoken: {[key in ChatModel]?: Tiktoken} = {}
 
@@ -29,12 +33,12 @@ export function countTokens(text: string, model: ChatModel): number {
  * @param system - Дополнительный системный контекст
  * @returns Сгенерированный текст, либо null в случае ошибки
  */
-export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel, system?: string): Promise<string | null> {
+export async function generateText(prompt: string, model: ChatModel, system?: string): Promise<string | null> {
   if (!prompt.trim().length) {
     throw new Error('Invalid prompt');
   }
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
+  const messages: Messages = []
 
   if (system) {
     messages.push({
@@ -49,11 +53,11 @@ export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel,
   })
 
   try {
-    const response = await client.chat.completions.create({
+    const response = await client.completion({
       messages,
-      model: model,
+      model: 'GigaChat Pro'
     });
-
+    
     const {
       completion_tokens,
       prompt_tokens,
@@ -72,8 +76,8 @@ export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel,
   }
 }
 
-export type Messages = OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-export type ChatModel = OpenAI.Chat.ChatModel
+export type Messages = ICompletionRequest['messages']
+export type ChatModel = ICompletionRequest['model']
 
 /**
  * Генерация текста с использованием размещенных сообщений
@@ -82,15 +86,13 @@ export type ChatModel = OpenAI.Chat.ChatModel
  * @returns Сгенерированный текст, либо null в случае ошибки
  */
 export async function generateTextAsMessages(
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  model: OpenAI.Chat.ChatModel,
-  response_format?: ChatCompletionCreateParamsBase['response_format']
+  messages: Messages,
+  model: ChatModel,
 ): Promise<string | null> {
   try {
-    const response = await client.chat.completions.create({
+    const response = await client.completion({
       messages,
-      model: model,
-      response_format,
+      model: 'GigaChat'
     });
 
     const {
@@ -105,27 +107,10 @@ export async function generateTextAsMessages(
     const allPrompts = messages.reduce((acc, message) => acc + message.content, '')
 
     console.log(`Промпт общей длиной ${allPrompts.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
+    
     return response.choices[0].message.content;
   } catch (error) {
     console.error('Ошибка при генерации текста:', error);
-    return null;
-  }
-}
-
-
-export async function transcribeFile(fileStream: ReadStream): Promise<string | null> {
-  try {
-    const response = await client.audio.transcriptions.create({
-      language: 'ru',
-      file: fileStream,
-      model: 'whisper-1',
-    });
-
-    console.log(Object.keys(response))
-
-    return response.text;
-  } catch (error) {
-    console.error(`Ошибка при транскрибации файла`, error);
     return null;
   }
 }

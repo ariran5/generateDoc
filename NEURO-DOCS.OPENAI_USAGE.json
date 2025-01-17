@@ -4,9 +4,19 @@
   "prompt_tokens": 6473,
   "total_tokens": 10558,
   "gpt-4o": {
-   "completion_tokens": 2095,
-   "prompt_tokens": 4847,
-   "total_tokens": 6942
+   "completion_tokens": 98792,
+   "prompt_tokens": 1374381,
+   "total_tokens": 1473173
+  },
+  "o1-preview": {
+   "completion_tokens": 20051,
+   "prompt_tokens": 20166,
+   "total_tokens": 40217
+  },
+  "gpt-4o-mini": {
+   "completion_tokens": 1118992,
+   "prompt_tokens": 59749746,
+   "total_tokens": 60868738
   }
  }
 }
