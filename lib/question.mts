@@ -10,8 +10,10 @@ const historyPath = 'QUESTION.history.json';
 const {
   model,
   ctx,
+  file,
 } = minimist<{
   model?: OpenAI.Chat.ChatModel
+  file: string
   ctx: boolean
 }>(process.argv.slice(2), {
   default: {
@@ -21,6 +23,7 @@ const {
   alias: {
     m: 'model',
     c: 'ctx',
+    f: 'file',
   },
   string: ['_'],
 })
@@ -37,16 +40,25 @@ if (fs.existsSync(historyPath)) {
   history = JSON.parse(historyData);
 }
 
+let firstQuestion = file ? fs.readFileSync(file, 'utf-8'): null
+
 do {
   // Only take the last 5 messages for context
   const recentHistory = history.slice(-5);
   const ctxText = recentHistory.map(h => `Q: ${h.question}\nA: ${h.response}`).join('\n') + '\n';
 
-  const res = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Что хотите спросить ?'
-  })
+  let res =  firstQuestion ? (
+    {
+      value: firstQuestion
+    }
+  ): (
+    await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Что хотите спросить ?'
+    })
+  )
+  firstQuestion = null
   
   if (!res.value.trim()) {
     throw new Error('Пустой ввод');

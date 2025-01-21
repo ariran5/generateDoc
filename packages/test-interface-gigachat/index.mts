@@ -2,12 +2,10 @@
 
 import { program } from "commander";
 import { run, RunProps } from "./generate";
-// import pkg from '../../package.json'
 
 program
-  .name('neuro-tests')
+  .name('neuro-tests-gigachat')
   .description('Generation tests for project')
-  // .version(pkg.version)
 
 
 function collect(value, previous) {

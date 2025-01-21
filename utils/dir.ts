@@ -18,10 +18,14 @@ export function readFilesRecursivelyAsPattern(dirPattern: string, ignore?: strin
   );
 }
 
-export async function getProjectFiles() {
-  const ignored = getIgnoredFiles()
+interface Props {
+  base: string;
+}
 
-  const files = await glob('**/*', {
+export async function getProjectFiles(options: Props) {
+  const ignored = getIgnoredFiles()
+  const pattern = path.join(options.base || './', '**/*')
+  const files = await glob(pattern, {
     // Adds a / character to directory matches.
     mark: true,
     ignore: {

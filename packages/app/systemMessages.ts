@@ -69,9 +69,9 @@ const execution: Command[]
 `
 
 
-export const filesAsSmallDescription = () => `
+export const filesAsSmallDescription = (files: string[]) => `
 Вот тебе список файлов которые есть в проекте и их короткое описание, если вдруг эта информация тебе пригодится:
-${getContextAsString(read())}
+${getContextAsString(read(), files)}
 
     `;
 

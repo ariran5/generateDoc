@@ -41,8 +41,9 @@ main('gpt-4o').catch(console.error)
 
 async function main(model: ChatModel) {
   console.log(model)
+  const base = 'app'
 
-  const files = await getProjectFiles()
+  const files = await getProjectFiles({base,})
   
   const confirm = true
   // const { confirm } = await inquirer.prompt([
@@ -72,10 +73,14 @@ async function main(model: ChatModel) {
 
   const chatHistory: Messages = []
 
-  runWork(model, chatHistory)
+  runWork(model, chatHistory, {base})
 }
 
-async function runWork(model: ChatModel, chatHistory: Messages) {
+async function runWork(
+  model: ChatModel,
+  chatHistory: Messages,
+  options: {base: string}
+): Promise<void> {
   let continueExecution = true;
 
   while (continueExecution) {
@@ -85,7 +90,9 @@ async function runWork(model: ChatModel, chatHistory: Messages) {
       prompt: 'Что будем делать ?',
     }
 
-    await executeCommands([startCommand], model, chatHistory);
+    await executeCommands([startCommand], model, chatHistory, {
+      ...options,
+    });
   }
 }
 

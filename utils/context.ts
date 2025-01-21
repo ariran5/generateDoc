@@ -5,11 +5,13 @@ import pLimit from 'p-limit';
 
 const limit = pLimit(10)
 
-import { generateText } from '../lib/openAIClient.mjs'
-
 const optimizedFilename = '.optimized.json'
 
-export async function createOptimizedContext(files: string[], model: string) {
+export async function createOptimizedContext(
+  files: string[],
+  model: string,
+  fn: (prompt: string, model: string, system?: string) => Promise<string | null>
+) {
   createFolder()
   const optimized: OptimizedContext = {}
 
@@ -17,15 +19,13 @@ export async function createOptimizedContext(files: string[], model: string) {
     return limit(async () => {
       const stat = fs.statSync(file)
       const content = fs.readFileSync(file, 'utf-8')
-      const result = await generateText(
+      const result = await fn(
         ` I has this file with programming code with extension ${path.extname(file)}.
-          I want to get minimal information about this code, existed functions and functions API, functioal and other.
+        I want to get technical information about the file. I am testing the code in this file and need data on the functions it provides, their input and output parameters, and other objects present in the file, but write concisely and provide only the technical details without explanations.
 
-          Give me very small respond in pure text format.
-          Give me technical information withot human information
+        Don't use markdown. Respond me with pure text without formatting.
 
-          ${content}
-          
+        ${content}
         `,
         // @ts-ignore
         model,
@@ -39,6 +39,8 @@ export async function createOptimizedContext(files: string[], model: string) {
         createdAt: stat.ctimeMs,
         updatedAt: stat.mtimeMs,
         result: result,
+        generatedFile: '',
+        generated: false,
       }
     })
   })
@@ -60,6 +62,11 @@ export interface OptimizedContext {
     createdAt: number;
     updatedAt: number;
     result: string;
+    generated: boolean;
+    /**
+     * Путь к сгенерированному файлу
+     */
+    generatedFile: string;
   }
 }
 
@@ -69,18 +76,26 @@ export function write(obj: OptimizedContext) {
   if (!fs.existsSync(neuroDocsDir)) {
     createFolder();
   }
-  fs.writeFileSync(filepath, JSON.stringify(obj), { encoding: 'utf-8'})
+  fs.writeFileSync(filepath, JSON.stringify(obj, null, ' '), { encoding: 'utf-8'})
 }
 
 export function read(): OptimizedContext {
   const filepath = path.join(neuroDocsDir, optimizedFilename)
 
-  return JSON.parse(fs.readFileSync(filepath, { encoding: 'utf-8'})) as OptimizedContext
+  try {
+    return JSON.parse(fs.readFileSync(filepath, { encoding: 'utf-8'})) as OptimizedContext
+  } catch (error) {
+    return {}
+  }
+  
 }
 
-export function getContextAsString(context: OptimizedContext): string {
+export function getContextAsString(context: OptimizedContext, files: string[]): string {
   const fullAppContext = Object
     .entries(context)
+    .filter(item => {
+      return files.includes(item[0])
+    })
     .map(([filepath, item]) => `
 file path: ${path.resolve(filepath)}
 file description: ${item.result}`
@@ -89,8 +104,12 @@ file description: ${item.result}`
   return fullAppContext
 }
 
-export async function addFileToContext(path: string, model: string) {
-  const newCTX = await createOptimizedContext([path], model)
+export async function addFileToContext(
+  path: string,
+  model: string,
+  fn: (prompt: string, model: string, system?: string) => Promise<string | null>
+) {
+  const newCTX = await createOptimizedContext([path], model, fn)
   const old = read()
 
   write(
