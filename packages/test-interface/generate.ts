@@ -3,13 +3,11 @@ import path from 'node:path'
 import { glob, GlobOptionsWithFileTypesUnset } from "glob";
 import prompts from "prompts";
 import { ChatModel, generateText, generateTextAsMessages, Messages } from '../../lib/openAIClient.mjs'
-// import { ChatModel, generateText, generateTextAsMessages, Messages } from '../../lib/gigachatAIClient.mjs'
 import { createOptimizedContext, getContextAsString, OptimizedContext, read, write, } from '../../utils/context';
 import pLimit from 'p-limit';
 import { getIgnoredFiles } from '../../utils/dir'
 import picocolors from 'picocolors';
 
-const limit = pLimit(10)
 const generateLimit = pLimit(5)
 
 export interface RunProps {
@@ -460,7 +458,7 @@ export async function run(pathPattern: string, options: RunProps) {
   }
 
   function getTestFilePath(filepath: string) {
-    const pathDiff = path.relative(base, filepath)
+    const pathDiff = path.relative(base, path.join(base, filepath))
     const newFilepath = path.join(
       out,
       pathDiff
