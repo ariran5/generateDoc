@@ -4,9 +4,34 @@
   "prompt_tokens": 6473,
   "total_tokens": 10558,
   "gpt-4o": {
-   "completion_tokens": 2095,
-   "prompt_tokens": 4847,
-   "total_tokens": 6942
+   "completion_tokens": 109008,
+   "prompt_tokens": 1449637,
+   "total_tokens": 1558645
+  },
+  "o1-preview": {
+   "completion_tokens": 20051,
+   "prompt_tokens": 20166,
+   "total_tokens": 40217
+  },
+  "gpt-4o-mini": {
+   "completion_tokens": 1143610,
+   "prompt_tokens": 60165406,
+   "total_tokens": 61309016
+  },
+  "GigaChat-Max": {
+   "completion_tokens": 129297,
+   "prompt_tokens": 510521,
+   "total_tokens": 639818
+  },
+  "o1": {
+   "completion_tokens": 31981,
+   "prompt_tokens": 86733,
+   "total_tokens": 118714
+  },
+  "deepseek/deepseek-chat": {
+   "completion_tokens": 102081,
+   "prompt_tokens": 290498,
+   "total_tokens": 392579
   }
  }
 }
