@@ -6,8 +6,16 @@ import { ReadStream } from 'fs';
 
 // Инициализация клиента OpenAI с использованием API ключа из переменных окружения
 export const client = new OpenAI({
+  baseURL: process.env['OPENAI_HOST'],
   apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
+
+const model = process.env['OPENAI_MODEL'] as string;
+
+if (!model) {
+  console.log('Need model in env OPENAI_MODEL=');
+  
+}
 
 const encoderTiktoken: {[key in ChatModel]?: Tiktoken} = {}
 
@@ -16,10 +24,11 @@ const encoderTiktoken: {[key in ChatModel]?: Tiktoken} = {}
  * @param text - Текст для подсчета токенов
  * @returns Количество токенов
  */
-export function countTokens(text: string, model: ChatModel): number {
-  const instance = encoderTiktoken[model] ? encoderTiktoken[model]: (encoderTiktoken[model] = encoding_for_model(model as unknown as TiktokenModel));
-  const encoded = instance.encode(text);
-  return encoded.length;
+export function countTokens(text: string,): number {
+  // const instance = encoderTiktoken[model] ? encoderTiktoken[model]: (encoderTiktoken[model] = encoding_for_model(model as unknown as TiktokenModel));
+  // const encoded = instance.encode(text);
+  // return encoded.length;
+  return 0;
 }
 
 /**
@@ -38,7 +47,7 @@ export async function generateText(prompt: string, model: OpenAI.Chat.ChatModel,
 
   if (system) {
     messages.push({
-      role: model.includes('o1') ? 'assistant': 'system',
+      role: 'system',
       content: system,
     })
   }
@@ -83,7 +92,7 @@ export type ChatModel = OpenAI.Chat.ChatModel
  */
 export async function generateTextAsMessages(
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  model: OpenAI.Chat.ChatModel,
+  model: string,
   response_format?: ChatCompletionCreateParamsBase['response_format']
 ): Promise<string | null> {
   try {
@@ -91,6 +100,7 @@ export async function generateTextAsMessages(
       messages,
       model: model,
       response_format,
+      temperature: 0.2,
     });
 
     const {
@@ -105,6 +115,7 @@ export async function generateTextAsMessages(
     const allPrompts = messages.reduce((acc, message) => acc + message.content, '')
 
     console.log(`Промпт общей длиной ${allPrompts.length}, исходящих/входящих токенов ${prompt_tokens}/${completion_tokens}(${total_tokens})`)
+
     return response.choices[0].message.content;
   } catch (error) {
     console.error('Ошибка при генерации текста:', error);

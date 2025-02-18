@@ -3,13 +3,15 @@ import { promises as fs } from 'fs';
 import { zodFunction, zodResponseFormat, } from 'openai/helpers/zod'
 import * as path from 'path';
 import { addFileToContext, removeFileFromContext } from '../../utils/context';
-import { ChatModel, countTokens, generateTextAsMessages, Messages } from '../../lib/openAIClient.mts';
+import { ChatModel, countTokens, generateText, generateTextAsMessages, Messages } from '../../lib/openAIClient.mts';
 import { filesAsSmallDescription, systemCommandsMessage, systemLanguageMessage } from './systemMessages';
-import inquirer from 'inquirer';
+// import inquirer from 'inquirer';
+import inquirer from 'prompts';
 import pc from 'picocolors'
 import { setTimeout } from 'timers/promises';
 import { z } from 'zod';
 import { getProjectFiles } from '../../utils/dir';
+import { exec } from 'child_process';
 
 // options
 const canMutate = true
@@ -20,7 +22,8 @@ export interface FileCommand {
   // read - прочитать файл для того чтоб потом применить какую-нибудь команду для которой нужно знать содержимое этого файла
   // create/update - создать и изменить файл, команда не умеет создавать директорию. Создавая файл в какой-то папке директория создастся автоматически
   // delete - удалить файл
-  action: 'create' | 'read' | 'update' | 'delete';
+  // read_dir - прочитать директорию, узнать какие в ней есть файлы и папки
+  action: 'create' | 'read' | 'update' | 'delete' | 'read_dir';
   filePath: string;
   // В поле prompt тебе нужно указать сообщение для ии, который выполнит эту работу, не нужно делать эту работу самостоятельно
   // каждая команда может работать только с 1 файлом. Этот ИИ будет знать то же самое что и ты, так что если ссылаешься на какой-то файл не забудь сначала его прочесть в полном виде если это необходимо
@@ -32,6 +35,14 @@ export interface MetaCommand {
   // terminate - это команда прерывает выполнение всех команд
   // next - это команда, которая говорит о том, что после выполнения имеющихся команд можно подумать, нужны ли еще дополнительные команды после выполнения имеющихся
   action: 'terminate' | 'next';
+}
+
+export interface BashCommand {
+  // 'bash' - команда, которая вызовет в консоли тот текст, который написан в поле command
+  type: 'bash'
+  action: 'execute'
+  // текст команды
+  command: string;
 }
 
 export interface InfoCommand {
@@ -50,61 +61,54 @@ export interface SplitCommand {
   prompt: string;
 }
 
-// выполнение команды в консоли
-// export interface ConsoleCommand {
-//   type: 'console-command'
-//   action: 'need-info' | 'split_into_small_tasks';
-//   prompt: string;
-// }
-
-export type Command = MetaCommand | FileCommand | InfoCommand | SplitCommand;
+export type Command = MetaCommand | FileCommand | InfoCommand | SplitCommand | BashCommand;
 
 export async function executeCommands(
   commands: Command[],
-  model: ChatModel,
+  model: string,
   chatHistory: Messages,
-  options: {base: string,}
+  options: {base: string, getFiles: typeof getProjectFiles}
 ) {
-  const {base = './', } = options;
+  const {base = './', getFiles } = options;
 
   for (const command of commands) {
     await setTimeout(400)
 
-    const tokenLength = countTokens(
-      chatHistory.reduce((a, i) => a + i.content, ''),
-      model
-    )
+    // const tokenLength = countTokens(
+    //   chatHistory.reduce((a, i) => a + i.content, ''),
+    //   model
+    // )
 
-    if (chatHistory.length > 40 && tokenLength > 45_000) {
-      console.log('Оптимизируем контекст, он слишком большой')
-      const oldHistory = chatHistory.splice(0, 10)
-      const res = await generateTextAsMessages([
-        {
-          role: 'system',
-          content: `
-          Вот есть история переписки. Дай краткий пересказ о том, что написано в этих сообщениях в хронологическом порядке.
-          ${JSON.stringify(oldHistory)}
-          `
-        }
-      ], model)
+    // if (chatHistory.length > 40 && tokenLength > 45_000) {
+    //   console.log('Оптимизируем контекст, он слишком большой')
+    //   const oldHistory = chatHistory.splice(0, 10)
+    //   const res = await generateTextAsMessages([
+    //     {
+    //       role: 'system',
+    //       content: `
+    //       Вот есть история переписки. Дай краткий пересказ о том, что написано в этих сообщениях в хронологическом порядке.
+    //       ${JSON.stringify(oldHistory)}
+    //       `
+    //     }
+    //   ], model)
 
-      if (res) {
-        chatHistory.unshift({
-          role: 'system',
-          content: `
-          Вот то, о чем шло общение раньше. История сжата в это небольшое сообщение:
-          ${res}
-          `
-        })
-      }
-    }
+    //   if (res) {
+    //     chatHistory.unshift({
+    //       role: 'system',
+    //       content: `
+    //       Вот то, о чем шло общение раньше. История сжата в это небольшое сообщение:
+    //       ${res}
+    //       `
+    //     })
+    //   }
+    // }
 
     try {
       switch (command.action) {
         case 'need-info': {
           const { userResponse } = await inquirer.prompt([
             {
-              type: 'input',
+              type: 'text',
               name: 'userResponse',
               message: command.prompt,
             }
@@ -116,10 +120,6 @@ export async function executeCommands(
               content: command.prompt
             },
             {
-              role: 'system',
-              content: systemLanguageMessage(),
-            },
-            {
               role: 'user',
               content: userResponse
             }
@@ -127,7 +127,20 @@ export async function executeCommands(
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model,{base})
+          const newCommands = await generateCommands([
+              ...chatHistory,
+              {
+                role: 'system',
+                content: `
+                  files in froject: ${(await getFiles({base,})).join()}
+                `
+              },
+              {
+                role: 'system',
+                content: systemLanguageMessage(),
+              },
+            ]
+            , model, {base})
           
           chatHistory.push(
             {
@@ -147,10 +160,6 @@ export async function executeCommands(
               content: `Давай эту задачу разобьем на конкретные команды работы над файлами`
             },
             {
-              role: 'system',
-              content: systemLanguageMessage(),
-            },
-            {
               role: 'user',
               content: command.prompt
             }
@@ -158,7 +167,19 @@ export async function executeCommands(
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model,{base})
+          const newCommands = await generateCommands([
+            ...chatHistory,
+            {
+              role: 'system',
+              content: `
+                files in froject: ${(await getFiles({base,})).join()}
+              `
+            },
+            {
+              role: 'system',
+              content: systemLanguageMessage(),
+            },
+          ], model,{base})
 
           chatHistory.push(
             {
@@ -181,7 +202,15 @@ export async function executeCommands(
 
           chatHistory.push(...m)
 
-          const newCommands = await generateCommands(chatHistory, model, {base})
+          const newCommands = await generateCommands([
+            ...chatHistory,
+            {
+              role: 'system',
+              content: `
+                files in froject: ${(await getFiles({base,})).join()}
+              `
+            }
+          ], model, {base})
 
           chatHistory.push(
             {
@@ -214,24 +243,30 @@ export async function executeCommands(
                 content: systemLanguageMessage(),
               },
               ...chatHistory,
-              filesContext(await getProjectFiles({base})),
+              {
+                role: 'system',
+                content: `
+                  files in froject: ${(await getFiles({base,})).join()}
+                `
+              },
               {
                 role: 'system',
                 content: `
                 Мы генерируем новые файлы для проекта по заданию пользователя. Учитывай то, какие файлы уже есть и делай соответствующую работу.
-                Ты сейчас будешь работать с файлом ${command.filePath}. Сгенерируй только сам контент этого файла БЕЗ МАРКДАУНА, и без вспомогательных символов, 
-                только текст который необходимо вставить в файл иначе ничего не будет работать, например:
-                Плохо:
-                // файл.расширение
-                \`\`\`тип файла
-                ...тут содержимое ответа
-                \`\`\`
+                Ты сейчас будешь работать с файлом ${command.filePath}.
 
-                Хорошо:
-                // файл.расширение
-                содержимое ответа без лищних символов
 
-                Пришли строго только код, который нужно вставить в файл
+                ответь в формате:
+                ${
+                  JSON.stringify(
+                    z.object({
+                      code: z.string().describe("Код, который нужен пользователю в его файле, с комментариями в коде"),
+                      description: z.string().describe("Описание кода, которое мы покажем пользователю"),
+                    }),
+                    null,
+                    '  '
+                  )
+                }
                 `,
               },
               {
@@ -240,17 +275,24 @@ export async function executeCommands(
               }
             ],
             model,
-            // zodResponseFormat(
-            //   z.object()
-            // )
+            zodResponseFormat(
+              z.object({
+                
+                code: z.string().describe("Код, который нужен пользователю в его файле, с комментариями в коде"),
+                description: z.string().describe("Описание кода, которое мы покажем пользователю"),
+              }),
+              'response_with_code'
+            )
           )
   
             if (!res) {
               return
             }
+            console.log(res);
+            const {code, description} = JSON.parse(res)
   
-            await fs.writeFile(filePath, res, 'utf-8');
-            await addFileToContext(filePath, model)
+            await fs.writeFile(filePath, code, 'utf-8');
+            // await addFileToContext(filePath, model, generateText)
             chatHistory.push(
               {
                 role: 'system',
@@ -288,7 +330,7 @@ export async function executeCommands(
           if (canMutate) {
             await fs.unlink(filePath);
           }
-          await removeFileFromContext(filePath)
+          // await removeFileFromContext(filePath)
           console.log(`File deleted: ${command.filePath}`);
           break;
         }
@@ -296,6 +338,34 @@ export async function executeCommands(
         case 'terminate': {
           
           return
+        }
+
+        case 'read_dir': {
+          const filePath = path.resolve(path.join(base, command.filePath));
+
+          const content = await fs.readdir(filePath, 'utf-8');
+
+          chatHistory.push({
+            role: 'system',
+            content: `
+              Необходимо было прочесть директорию ${command.filePath} с помощью команды read_dir, команда выполнена и вот его содержание:
+              ${content.join(',')}
+            `
+          });
+
+          break;
+        }
+
+        case 'execute': {
+          exec(command.command)
+
+          chatHistory.push({
+            role: 'system',
+            content: `
+              Необходимо было вызвать команду в bash, вот текст команды "${command.command}". Задача была выполнена.
+            `
+          });
+          break;
         }
 
         default:
@@ -308,25 +378,11 @@ export async function executeCommands(
   }
 }
 
-// Example JSON commands
-// const commands: Command[] = [
-//   { action: 'create', filePath: 'example.txt', content: 'Hello, World!' },
-//   { action: 'read', filePath: 'example.txt' },
-//   { action: 'update', filePath: 'example.txt', content: 'Updated content' },
-//   { action: 'delete', filePath: 'example.txt' },
-// ];
-
-// executeCommands(commands).catch(err => console.error(err));
-
-const filesContext = (files: string[]): Messages[number] => {
-
-  return {
-    role: 'system',
-    content: filesAsSmallDescription(files),
-  }
-}
-
-async function generateCommands(messages: Messages, model: ChatModel, options: {base: string}) {
+async function generateCommands(
+  messages: Messages,
+  model: string,
+  options: {base: string}
+) {
   const {base} = options
   const systemMessages: Messages = [
     {
@@ -336,14 +392,13 @@ async function generateCommands(messages: Messages, model: ChatModel, options: {
   ]
 
   const allMessages: Messages = [
-    filesContext(await getProjectFiles({base})),
     ...messages,
     ...systemMessages,
   ]
 
   const res = await generateTextAsMessages(
     allMessages,
-    model
+    model,
   );
 
   console.log(res)
@@ -354,13 +409,14 @@ async function generateCommands(messages: Messages, model: ChatModel, options: {
     {
       type: 'confirm',
       name: 'confirm',
-      message: 'Вы согласны с этими командами ?'
+      message: 'Вы согласны с этими командами ?',
+      default: true
     }
   ])
 
   if (!confirm) {
     // попробовать еще раз
-    console.error('плохие команды')
+    console.error('Согласен, плохие команды')
     return []
   }
 

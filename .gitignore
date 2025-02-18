@@ -2,3 +2,13 @@
 .env
 node_modules
 docs*
+# consoleFull
+calc
+clang
+audio
+audioText
+example-master
+python-fastapi-example-main
+RubyExamples
+tests
+# glauth-master

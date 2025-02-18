@@ -55,7 +55,7 @@ export async function generateText(prompt: string, model: ChatModel, system?: st
   try {
     const response = await client.completion({
       messages,
-      model: 'GigaChat Pro'
+      model,
     });
     
     const {
@@ -92,7 +92,7 @@ export async function generateTextAsMessages(
   try {
     const response = await client.completion({
       messages,
-      model: 'GigaChat'
+      model,
     });
 
     const {

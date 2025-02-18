@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import minimist from 'minimist';
 import prompts from "prompts";
 import fs from 'node:fs';
-import { generateText } from './openAIClient.mjs';
+import { generateText, } from './openAIClient.mjs';
 
 const resPath = 'QUESTION.response.md';
 const historyPath = 'QUESTION.history.json';
@@ -84,3 +84,4 @@ do {
   fs.writeFileSync(historyPath, JSON.stringify(history, null, 2));
   
 } while (true);
+

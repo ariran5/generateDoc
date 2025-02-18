@@ -2,12 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path'
 import { glob, GlobOptionsWithFileTypesUnset } from "glob";
 import prompts from "prompts";
-import { ChatModel, generateText, generateTextAsMessages, Messages } from '../../lib/openAIClient.mjs'
+// import { ChatModel, generateText, generateTextAsMessages, Messages } from '../../lib/openAIClient.mjs'
+import { ChatModel, generateText, generateTextAsMessages, Messages } from '../../lib/gigachatAIClient.mjs'
 import { createOptimizedContext, getContextAsString, OptimizedContext, read, write, } from '../../utils/context';
 import pLimit from 'p-limit';
 import { getIgnoredFiles } from '../../utils/dir'
 import picocolors from 'picocolors';
 
+const limit = pLimit(10)
 const generateLimit = pLimit(5)
 
 export interface RunProps {
@@ -105,22 +107,18 @@ export async function run(pathPattern: string, options: RunProps) {
     console.log(e, 'Ошибка, не правильная работа с контекстом')
   }
 
-  const nodePath = path
   const littleContext = read()
   const stringAboutFilesFromSmallContext = getContextAsString(
     littleContext,
     [...new Set([...files, ...filteredRefFiles])]
   )
 
-  const baseContext = (path: string) => {
-    const originalPath = nodePath.resolve(path)
-    
+  const baseContext = (path: string) => {    
     return `
-    i have app, and i need tests for it.
-    my app based on language ${language} and i need tests with framework ${framework}.
+    У меня есть приложение и мне нужны для него тесты.
+    Я пишу на языке программирования ${language} и мне нужны тесты на фреймворке ${framework}.
     
-    I work in directory ${baseDir}. Use relative path for imports if it need.
-    Parent file(original file) for generate test here ${originalPath}
+    Моя рабочая директория ${baseDir}. Используй относительные пути, если это необходимо.
     `
   }
 
@@ -128,12 +126,15 @@ export async function run(pathPattern: string, options: RunProps) {
     const finalPath = getTestFilePath(path)
 
     return `
-    now i need generate tests in plain text format without explanation for this file for insert code without formattings. NOT USE MARKDOWN.
-    New generated file i put to dir ${finalPath}, use this information for correct import from this test file
+    Сгенерируй мне файл c тестами на языке ${language} и фреймворке ${framework}.
+    Мы с тобой обсудили, какие могут быть тест кейсы, теперь создай файл с базовым кодом для тестов и опиши внутри каждый придуманной тобой текст теста.
+    Файл будет лежать по пути ${finalPath}, используй эту информацию для генерации правильных импортов
+    
+    Пожалуйста, мой сладкий, сделай чтоб все было очень и очень хорошо, я заплачу тебе за эту работу очень много денег.
 
-    Please implement the entire code so I don't have to add anything
+    Проверь все кейсы, включая краевые, но особое внимание удели основному функционалу.
 
-    ${ comment ? 'user comment: ' + comment: ''}
+    ${ comment ? '(дополнительно): ' + comment: ''}
     `
   }
 
@@ -168,31 +169,26 @@ export async function run(pathPattern: string, options: RunProps) {
         const messages: Messages = [
           {
             role: 'system',
-            content: baseContext(filePath),
-          },
-          {
-            role: 'system',
-            content: `
-            this small description about all my files:
+            content: baseContext(filePath) + `
+            Далее короткое содержание файлов, которые есть у меня в проекте:
 
             ${stringAboutFilesFromSmallContext}
-            `
-          },
-          {
-            role: 'system',
-            content: `
-            File we will be working with:
+            ` + `
+            А вот файл, на который нам необходимо написать тест.
             path: ${filePath}
             content: ${originalFileContent}
-            `,
+            `
           },
           {
             role: 'user',
             content: `
-            Respond using a numbered list, starting from 1 and continuing by points. Attempt to take into account whether this file utilizes anything from other files. If so, try to examine all suggested files in detail; for example, files might be used for re-export.
-
-
-            Tell me, what tests would you like to conduct in this file? Provide me with a very detailed list so that the code coverage is close to 100%.`
+            Мне нужно написать тест для файла ${filePath}.
+            Я хочу чтоб ты написал мне список того, что нужно протестировать.
+            Список должен начинаться с 1 пункта и далее увеличивается на единицу.
+            Если в файле не достаточно информации, то используй свои знания о кратком описании других файлов.
+            Попытайся понять что делает этот файл и распиши мне подробно в виде списка то, что нужно протестировать.
+            Ответь текстом без разметки, просто текст.
+            `
           }
         ]
 
@@ -215,12 +211,13 @@ export async function run(pathPattern: string, options: RunProps) {
           content: testCases
         })
 
-        messages.push({
-          role: 'system',
-          content: `
-          The user will now want to generate files. You must be very careful and avoid making mistakes. Write the code in as much detaild as possible, include comments for this code, and make the corrent imports of necessary libraries and other files. When importing, use only not paths but also aliases if you know them.
-          `
-        })
+
+        // messages.push({
+        //   role: 'system',
+        //   content: `
+        //   The user will now want to generate files. You must be very careful and avoid making mistakes. Write the code in as much detaild as possible, include comments for this code, and make the corrent imports of necessary libraries and other files. When importing, use only not paths but also aliases if you know them.
+        //   `
+        // })
 
         messages.push({
           role: 'user',
@@ -236,27 +233,28 @@ export async function run(pathPattern: string, options: RunProps) {
             return
         }
 
-        const withCorrectImports = await generateTextAsMessages([
-          ...messages,
-          {
-            role: 'assistant',
-            content: result,
-          },
-          {
-            role: 'user',
-            content: `
-            What imports need to be removed or added? Pay attention to the library imports for our task. Please do everything correctly, it would help me a lot. If you do a good job, I'll buy you a burger.
+        const withCorrectImports = result
+        // const withCorrectImports = await generateTextAsMessages([
+        //   ...messages,
+        //   {
+        //     role: 'assistant',
+        //     content: result,
+        //   },
+        //   {
+        //     role: 'user',
+        //     content: `
+        //     What imports need to be removed or added? Pay attention to the library imports for our task. Please do everything correctly, it would help me a lot. If you do a good job, I'll buy you a burger.
 
-            Give me result as a final file after your work
-            `
-          }
-        ], model)
+        //     Give me result as a final file after your work
+        //     `
+        //   }
+        // ], model)
 
-        if (!withCorrectImports) {
-          console.log(
-            picocolors.bgRed(filePath + ': ' + 'no content "withCorrectImports"'))
-          return
-        }
+        // if (!withCorrectImports) {
+        //   console.log(
+        //     picocolors.bgRed(filePath + ': ' + 'no content "withCorrectImports"'))
+        //   return
+        // }
 
         const puteText = await generateTextAsMessages([
           {
@@ -265,7 +263,7 @@ export async function run(pathPattern: string, options: RunProps) {
           },
           {
             role: 'user',
-            content: `Please, give me code as pure text because i whant insert your responce to my file. Dont use markdown and other, pure code for tests`
+            content: `отчисти все лишнее и пришли мне только код файла, который я вставлю в файл с расширением ${outExt}. Больше ничего, без объяснения, только код.`
           }
         ], model)
 
@@ -356,80 +354,59 @@ export async function run(pathPattern: string, options: RunProps) {
 
       const contextForChange = `
       ${contextPhrase}
-      ==== Previous text is old generation. Today i need change generated file based on this context.
+      ==== Все что выше - это тест предыдущей генерации файла. В результате работы у нас получился файл, который я покажу ниже.
       
-      My current test file for ${originalPath}:
+      Мы генерировали тесты для файла ${originalPath}:
+      Путь к тестовому файлу ${changeFile}
+      Содежание файла с тестами:
       ${testFile}
 
       ====
-      Please, i give you many money, but make very good job for me. My comment for make change:
+      ${baseContext(originalPath)}
+      Мне нужно поменять мою генерацию, вот что я хочу:
       ${propmt}
       `
-      await generateFile(originalPath, contextForChange)
+      
+      console.log('Generation: ' + originalPath)
+
+      const messages: Messages = [
+        {
+          role: 'system',
+          content: `
+            Далее короткое содержание файлов, которые есть у меня в проекте:
+
+            ${stringAboutFilesFromSmallContext}
+            ` + `
+            А вот файл, на который нам необходимо написать тест.
+            path: ${originalPath}
+            content: ${originalFile}
+          `
+        },
+        {
+          role: 'user',
+          content: contextForChange
+        }
+      ]
+
+      const result = await generateTextAsMessages(messages, model)
+      
+      
+      if (!result) {
+        return
+      }
+
+      writeTestFile(originalPath, result)
+      
+      {
+        const oldCTX = read()
+        oldCTX[originalPath].generated = true
+        oldCTX[originalPath].generatedFile = getTestFilePath(originalPath)
+        write(oldCTX)
+      }
+
+      console.log('GenerationEnd: ' + originalPath)
       
     } while (true);
-  }
-
-  function generateFile(filePath: string, content: string) {
-    return generateLimit(async () => {
-    
-      if (!content) {
-        return;
-      }
-      
-      console.log('Generation: ' + filePath)
-
-      const result = await generateText(content, model)
-      
-      
-      if (!result) {
-        return
-      }
-
-      writeTestFile(filePath, result)
-      
-      {
-        const oldCTX = read()
-        oldCTX[filePath].generated = true
-        oldCTX[filePath].generatedFile = getTestFilePath(filePath)
-        write(oldCTX)
-      }
-
-      console.log('GenerationEnd: ' + filePath)
-
-      return result;
-    })
-  }
-
-  function generateFileAsMessages(filePath: string, content: Messages) {
-    return generateLimit(async () => {
-    
-      if (!content.length) {
-        return;
-      }
-      
-      console.log('Generation: ' + filePath)
-
-      const result = await generateTextAsMessages(content, model)
-      
-      
-      if (!result) {
-        return
-      }
-
-      writeTestFile(filePath, result)
-      
-      {
-        const oldCTX = read()
-        oldCTX[filePath].generated = true
-        oldCTX[filePath].generatedFile = getTestFilePath(filePath)
-        write(oldCTX)
-      }
-
-      console.log('GenerationEnd: ' + filePath)
-
-      return result;
-    })
   }
 
   /**
@@ -458,7 +435,7 @@ export async function run(pathPattern: string, options: RunProps) {
   }
 
   function getTestFilePath(filepath: string) {
-    const pathDiff = path.relative(base, path.join(base, filepath))
+    const pathDiff = path.relative(base, filepath)
     const newFilepath = path.join(
       out,
       pathDiff

@@ -3,7 +3,8 @@
   "version": "1.8.1",
   "main": "./lib/index.mts",
   "bin": {
-    "neuro-docs": "./lib/index.mts"
+    "neuro-docs": "./lib/index.mts",
+    "neuro-tests": "./packages/test-interface-deep2/cli.ts"
   },
   "workspaces": [
     "packages/*"
@@ -12,10 +13,16 @@
     "start": "tsx --env-file=.env ./lib/index.mts",
     "tests": "tsx --env-file=.env packages/test-interface/index.mts generate '**/*.mts' -r --ref qwe --ref asdfdas -i node_modules  -l typescript -f vitest",
     "tests:go": "tsx --env-file=.env packages/test-interface/index.mts generate 'example-master/{appengine-hello,hello}/**/*.go' -r -l golang -f gotest -i *_test.go",
-    "tests:console": "tsx --env-file=.env packages/test-interface/index.mts generate 'consoleFull/packages/ui/components/*/index.ts' --ref 'consoleFull/packages/ui/components/**/*' -r -l vue-typescript -f vitest --out-ext .test.ts -o consoleFull/packages/ui/tests --comment 'делай правильные импорты' --base 'consoleFull/packages/ui/'",
+    "tests:go2": "tsx --env-file=.env packages/test-interface/index.mts generate 'glauth-master/v2/pkg/handler/ldap.go' -l golang -f testify --out-ext _test.go --ref 'glauth-master/v2/internal/monitoring/**/*' --ref 'glauth-master/v2/pkg/**/*' -m o1",
+    "tests:console": "tsx --env-file=.env packages/test-interface/index.mts generate 'consoleFull/packages/ui/components/*/index.ts' --ref 'consoleFull/packages/ui/components/**/*' -r -l vue-typescript -f vitest --out-ext .test.ts -o consoleFull/packages/ui/tests --comment 'делай правильные импорты' --base 'consoleFull/packages/ui/' -m 'gpt-4o' ",
+    "tests:console-deep2": "tsx --env-file=.env packages/test-interface-deep2/cli.ts generate 'consoleFull/packages/ui/components/*/index.ts' -l vue-typescript -f vitest -m 'deepseek/deepseek-chat' --ref 'consoleFull/packages/ui/components/**/*'",
+    "tests:console-deep2:go": "tsx --env-file=.env packages/test-interface-deep2/cli.ts generate 'glauth-master/v2/pkg/handler/ldap.go' -l golang -f testify -m 'deepseek/deepseek-chat'",
+    "tests:console-deep2:go-g:inp": "tsx --inspect-brk --env-file=.env packages/test-interface-deep2/cli.ts generate 'glauth-master/v2/pkg/handler/ldap.go' -l golang -f testify -m 'GigaChat-Max'",
+    "tests:console-deep2:inp": "tsx --inspect-brk --env-file=.env packages/test-interface-deep2/cli.ts generate 'consoleFull/packages/ui/components/*/index.ts' -l vue-typescript -f vitest -m 'deepseek/deepseek-chat' --ref 'consoleFull/packages/ui/components/**/*'",
+    "tests-g:console": "tsx --env-file=.env packages/test-interface-gigachat/index.mts generate 'consoleFull/packages/ui/components/*/index.ts' --ref 'consoleFull/packages/ui/components/**/*' -r -l vue-typescript -f vitest --out-ext .test.ts -o consoleFull/packages/ui/tests --comment 'делай правильные импорты' --base 'consoleFull/packages/ui/' -m GigaChat-Max",
     "tests:ruby": "tsx --env-file=.env packages/test-interface/index.mts generate 'RubyExamples/**/*.rb' -r -l ruby -f rspec",
     "tests:py": "tsx --env-file=.env packages/test-interface/index.mts generate 'python-fastapi-example-main/src/**/*.py' -r -l python -f unittest",
-    "app": "tsx --env-file=.env packages/app/index.ts",
+    "app": "tsx --env-file=.env packages/app/index.ts -m deepseek/deepseek-chat",
     "app:inspect": "tsx --inspect --env-file=.env packages/app/index.ts",
     "question": "tsx --env-file=.env ./lib/question.mts -m o1-preview",
     "question:f": "tsx --env-file=.env ./lib/question.mts -m o1-preview -f QUESTION.txt",
@@ -31,7 +38,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/cli-progress": "^3.11.6",
     "@types/node": "^22.10.1",
+    "cli-progress": "^3.12.0",
     "commander": "^12.1.0",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
@@ -63,6 +72,7 @@
     "README.md",
     "package.json",
     "package-lock.json",
-    "utils"
+    "utils",
+    "packages"
   ]
 }

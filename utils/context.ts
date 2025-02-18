@@ -5,11 +5,13 @@ import pLimit from 'p-limit';
 
 const limit = pLimit(10)
 
-import { generateText } from '../lib/openAIClient.mjs'
-
 const optimizedFilename = '.optimized.json'
 
-export async function createOptimizedContext(files: string[], model: string) {
+export async function createOptimizedContext(
+  files: string[],
+  model: string,
+  fn: (prompt: string, model: string, system?: string) => Promise<string | null>
+) {
   createFolder()
   const optimized: OptimizedContext = {}
 
@@ -17,7 +19,7 @@ export async function createOptimizedContext(files: string[], model: string) {
     return limit(async () => {
       const stat = fs.statSync(file)
       const content = fs.readFileSync(file, 'utf-8')
-      const result = await generateText(
+      const result = await fn(
         ` I has this file with programming code with extension ${path.extname(file)}.
         I want to get technical information about the file. I am testing the code in this file and need data on the functions it provides, their input and output parameters, and other objects present in the file, but write concisely and provide only the technical details without explanations.
 
@@ -37,6 +39,7 @@ export async function createOptimizedContext(files: string[], model: string) {
         createdAt: stat.ctimeMs,
         updatedAt: stat.mtimeMs,
         result: result,
+        generatedFile: '',
         generated: false,
       }
     })
@@ -101,8 +104,12 @@ file description: ${item.result}`
   return fullAppContext
 }
 
-export async function addFileToContext(path: string, model: string) {
-  const newCTX = await createOptimizedContext([path], model)
+export async function addFileToContext(
+  path: string,
+  model: string,
+  fn: (prompt: string, model: string, system?: string) => Promise<string | null>
+) {
+  const newCTX = await createOptimizedContext([path], model, fn)
   const old = read()
 
   write(

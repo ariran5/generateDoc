@@ -14,7 +14,12 @@ import {
 import { ITokenResponse } from "./interfaces/token";
 import { IEmbeddingResponse } from "./interfaces/embedding";
 import { ISummarizeResponse } from "./interfaces/summarize";
-import { writeFileSync } from 'fs';
+
+const {
+    GIGACHAT_URL = "https://gigachat.devices.sberbank.ru/api/v1",
+    GIGACHAT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+} = process.env;
+
 class GigaChat {
 
     public authorization: string | undefined;
@@ -27,8 +32,8 @@ class GigaChat {
     private imgOn: boolean;
     private imgPath: string;
 
-    private url: string = "https://gigachat.devices.sberbank.ru/api/v1";
-    private urlAuth: string = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
+    private url: string = GIGACHAT_URL;
+    private urlAuth: string = GIGACHAT_AUTH_URL;
     private scopeForPersonal: string = "GIGACHAT_API_PERS";
     private scopeForCorporation: string = "GIGACHAT_API_CORP";
 
@@ -61,57 +66,6 @@ class GigaChat {
     }
 
     private async post(path: string, data: object, stream: boolean = false): Promise<AxiosResponse<any>> {
-        
-        // const messages = data.messages
-        // .map(item => {
-        //     if (item.role === 'system') {
-        //         return {
-        //             role: 'user',
-        //             content: item.content,
-        //         }
-        //     }
-
-        //     return item
-        // })
-        // .reduce((acc, item) => {
-        //     const prev = acc[acc.length - 1]
-
-        //     if (item.role === prev?.role) {
-        //         prev.content += `\n ${item.content}`
-        //     } else {
-        //         acc.push(item)
-        //     }
-
-        //     return acc
-        // }, [])
-            // .reduce((acc, item) => {
-
-            //     if (item.role === 'system') {
-            //         const a = acc.find(item => item.role === 'system')
-            //         if (!a) {
-            //             acc.push(item)
-            //         } else {
-            //             a.content += `\n ${item.content}`
-            //         }
-            //     } else {
-            //         acc.push(item)
-            //     }
-
-            //     return acc
-            // }, [])
-            // .filter(item => item.role !== 'system')
-
-            
-            
-            // writeFileSync('./jsonfilesystem.json', JSON.stringify(messages, null, ' '))
-        
-        // const finalData = {
-        //     ...data,
-        //     messages,
-        // }
-            
-        console.log(finalData.messages.map(item => item.role))
-
         const response = await axios.post(`${this.url}${path}`, data, {
             headers: {
                 Authorization: `Bearer ${this.authorization}`,
@@ -156,8 +110,8 @@ class GigaChat {
         if(this.autoRefreshToken) {
             try {
                 await this.createToken();
-                const responce = await currentFunction();
-                return responce.data;
+                const response = await currentFunction();
+                return response.data;
             }
             catch(error) {
                 throw new Error(`GigaChat Error (create completion):\n${error}`);
