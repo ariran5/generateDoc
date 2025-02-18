@@ -5,7 +5,7 @@ import { ICompletionRequest } from 'gigachat-node/interfaces/completion.js';
 
 // Инициализация клиента OpenAI с использованием API ключа из переменных окружения
 export const client = new GigaChat(
-  '13573c4b-129f-46d6-9dec-c4b6e129aa2c',
+  'a3f57ab9-f6bd-4a96-a9e6-fc68f6362646',
   '31ae7415-34c1-4836-b7ec-a805682c0436',
   true,
   true,

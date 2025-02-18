@@ -26,7 +26,7 @@ program
   // .option('--ref <string>', 'project files for reference files for best result', collect, [])
   // .option('-r, --replace', 'replace exists tests', v => v == undefined ? true: Boolean(v), false)
   // .option('-o, --out <string>', 'out dir for files, default "tests"', v => v, 'tests')
-  .option('-m, --model <string>', 'chatGPT model name, default gpt-4o-mini', (v, p) => v || p, 'gpt-4o-mini')
+  .requiredOption('-m, --model <string>', 'Model name',)
   // .option('--optimized', 'use mini files context', v => v == undefined ? true: Boolean(v), false)
   // .option('--rechecking', 'rechecking result with additional request on each file for find errors', v => v == undefined ? true: Boolean(v), false)
   .action((str: string, options) => {
@@ -36,16 +36,18 @@ program
   });
 
 
-main('gpt-4o').catch(console.error)
+main('deepseek/deepseek-chat').catch(console.error)
 
 
-async function main(model: ChatModel) {
+async function main(model: string) {
   console.log(model)
-  const base = 'app'
+  const base = './'
 
   const files = await getProjectFiles({base,})
+
+  // console.log(files.length)
   
-  const confirm = true
+  // const confirm = true
   // const { confirm } = await inquirer.prompt([
   //   {
   //     type: 'confirm',
@@ -57,29 +59,29 @@ async function main(model: ChatModel) {
 
   // console.log(files)
   // return 
-  if (confirm) {
-    const ctx = read()
-    const diff = getUniqueElementsReport(Object.keys(ctx), files)
-    const newCTX = await createOptimizedContext(diff.onlyInArray2, model)
+  // if (confirm) {
+  //   const ctx = read()
+  //   const diff = getUniqueElementsReport(Object.keys(ctx), files)
+  //   const newCTX = await createOptimizedContext(diff.onlyInArray2, model, generateText)
 
-    diff.onlyInArray1.forEach((path) => {
-      delete ctx[path]
-    })
+  //   diff.onlyInArray1.forEach((path) => {
+  //     delete ctx[path]
+  //   })
     
-    write(
-      Object.assign(ctx, newCTX)
-    )
-  }
+  //   write(
+  //     Object.assign(ctx, newCTX)
+  //   )
+  // }
 
   const chatHistory: Messages = []
 
-  runWork(model, chatHistory, {base})
+  runWork(model, chatHistory, {base, getFiles: getProjectFiles})
 }
 
 async function runWork(
-  model: ChatModel,
+  model: string,
   chatHistory: Messages,
-  options: {base: string}
+  options: {base: string, getFiles: typeof getProjectFiles}
 ): Promise<void> {
   let continueExecution = true;
 

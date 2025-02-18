@@ -28,6 +28,16 @@ const filePath = path.join(__dirname, USAGE_FILE);
 
 const usage = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8').toString()) as Usage : structuredClone(defaultObj); 
 
+const usageOnStart = Object.freeze(structuredClone(usage))
+
+export function getSessionUsage(model: string): Usage['openAI'][string] {
+  return {
+    completion_tokens: usage.openAI[model].completion_tokens - usageOnStart.openAI[model].completion_tokens,
+    prompt_tokens: usage.openAI[model].prompt_tokens - usageOnStart.openAI[model].prompt_tokens,
+    total_tokens: usage.openAI[model].total_tokens - usageOnStart.openAI[model].total_tokens,
+  }
+}
+
 export function updateUsage(obj: Usage['openAI'][string], model: OpenAIModel) {
   if (!usage.openAI[model]) {
     usage.openAI[model] = defaultUsageObj();
