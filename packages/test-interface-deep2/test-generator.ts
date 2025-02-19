@@ -1,6 +1,5 @@
-// import { createCompletention } from '../../lib/openAIClient2.mts';
 import picocolors from 'picocolors';
-import { createCompletention } from '../../lib/gigachatAIClient2.mjs'
+import { createCompletention } from './LLM_Client'
 import { FileContext, RunProps, } from './types';
 import { extractJson, tryes } from './utils'
 
