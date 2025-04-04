@@ -119,8 +119,8 @@ function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaul
   const traverse = (items: MenuItem[], baseDir = ''): SidebarItem[] => {
     return items.map(item => {
       const { dir, filename,} = item
-      const pathWithDir = dir ? path.join(baseDir, dir) : baseDir
-      const pathWithFilename = filename ? path.join(pathWithDir, filename) : baseDir
+      const pathWithDir = dir ? path.posix.join(baseDir, dir) : baseDir
+      const pathWithFilename = filename ? path.posix.join(pathWithDir, filename) : baseDir
 
       let finalPathWithFilename = pathWithFilename
       if (!withIndexFile) {
@@ -166,6 +166,13 @@ const SidebarMenuWithFilenames = generateSidebar(menu, {widthExtension: true, wi
 fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), JSON.stringify(SidebarMenuWithFilenames, null, ' '), 'utf-8');
 console.log(`Записан JSON для сайдбара документации с расширениями`)
 
+function toPosixPath(str?: string) {
+  if (!str) {
+    return str;
+  }
+
+  return str.replaceAll('\\', '/')
+}
 
 export type HistoryItem = {
   item: MenuItem
@@ -270,9 +277,9 @@ async function run(){
             fs.mkdirSync(finalDir, { recursive: true });
             console.log(`Создана директория: ${finalDir}`);
           }
-
+          
           // Если нет файла, то создаем
-          if (!fs.existsSync(filePath) || itemForChange?.selectedFilename === path.join(finalURL, filename)) {
+          if (!fs.existsSync(filePath) || toPosixPath(itemForChange?.selectedFilename) === toPosixPath(path.posix.join(finalURL, filename))) {
             // Записываем содержимое в файл
             const result = withQuestions ? await prompts({
               type: 'confirm',
