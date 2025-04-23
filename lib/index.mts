@@ -169,6 +169,13 @@ const SidebarMenuWithFilenames = generateSidebar(menu, {widthExtension: true, wi
 fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), JSON.stringify(SidebarMenuWithFilenames, null, ' '), 'utf-8');
 console.log(`Записан JSON для сайдбара документации с расширениями`)
 
+function toPosixPath(str?: string) {
+  if (!str) {
+    return str;
+  }
+
+  return str.replaceAll('\\', '/')
+}
 
 export type HistoryItem = {
   item: MenuItem
@@ -234,7 +241,7 @@ async function run(){
   }
 
   // если changeMode - boolean, то выбираем страницу для изменения, если changeMode - string, то используем этот prompt
-  let itemForChange: {selectedFilename:{title: string, value: string}} | null = null
+  let itemForChange: {selectedFilename: {title: string, value: string}} | null = null
   if (typeof changeMode === 'boolean' && changeMode) {
     itemForChange = await prompts({
       type: 'autocomplete',
@@ -280,9 +287,9 @@ async function run(){
             fs.mkdirSync(finalDir, { recursive: true });
             console.log(`Создана директория: ${finalDir}`);
           }
-
+          
           // Если нет файла, то создаем
-          if (!fs.existsSync(filePath) || itemForChange?.selectedFilename?.value === path.join(finalURL, filename)) {
+          if (!fs.existsSync(filePath) || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
             // Записываем содержимое в файл
             // const result = withQuestions ? await prompts({
             //   type: 'confirm',
