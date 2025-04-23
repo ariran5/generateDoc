@@ -18,7 +18,8 @@ const argv = minimist<{
   extension?: string
   all?: boolean
   debug?: boolean
-  changeMode?: boolean
+  changeMode?: string | boolean
+  prompt?: string
 }>(process.argv.slice(2), {
   default: {
     help: false,
@@ -29,6 +30,7 @@ const argv = minimist<{
     all: false,
     debug: false,
     changeMode: false,
+    prompt: undefined
   },
   alias: {
     h: 'help',
@@ -38,10 +40,10 @@ const argv = minimist<{
     e: 'extension',
     a: 'all',
     c: 'changeMode',
+    p: 'prompt'
   },
   string: ['_'],
 })
-
 
 const {
   config = 'doc-generator.ts',
@@ -52,6 +54,7 @@ const {
   all,
   debug,
   changeMode,
+  prompt: consolePrompt
 } = argv
 
 if (all && changeMode) {
@@ -119,8 +122,8 @@ function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaul
   const traverse = (items: MenuItem[], baseDir = ''): SidebarItem[] => {
     return items.map(item => {
       const { dir, filename,} = item
-      const pathWithDir = dir ? path.join(baseDir, dir) : baseDir
-      const pathWithFilename = filename ? path.join(pathWithDir, filename) : baseDir
+      const pathWithDir = dir ? path.posix.join(baseDir, dir) : baseDir
+      const pathWithFilename = filename ? path.posix.join(pathWithDir, filename) : baseDir
 
       let finalPathWithFilename = pathWithFilename
       if (!withIndexFile) {
@@ -230,17 +233,24 @@ async function run(){
     return Boolean(path.toReversed().find(item => key in item)?.[key])
   }
 
-  const itemForChange = changeMode ? (
-    await prompts({
+  // если changeMode - boolean, то выбираем страницу для изменения, если changeMode - string, то используем этот prompt
+  let itemForChange: {selectedFilename:{title: string, value: string}} | null = null
+  if (typeof changeMode === 'boolean' && changeMode) {
+    itemForChange = await prompts({
       type: 'autocomplete',
       name: 'selectedFilename',
       message: 'Выберите страницу которую нужно изменить',
       choices: pagesListForChanges(),
-      // suggest: (input, choices) =>
-      //   Promise.resolve(choices.filter(choice => choice.title.toLowerCase().includes(input.toLowerCase())))
     })
-  ): null;
-  
+  } else if (typeof changeMode === 'string') {
+    const finded = pagesListForChanges().find(item => {
+      return path.posix.normalize(item.value) === path.posix.normalize('/' + changeMode)
+    })
+    if (finded) {
+      itemForChange = {selectedFilename: finded}
+    }
+  }
+
   // Рекурсивная функция для генерации документации
   async function generateDocumentation({items, baseDir, menupath}: GenerateProps): Promise<void> {
     for (const item of items) {
@@ -272,16 +282,16 @@ async function run(){
           }
 
           // Если нет файла, то создаем
-          if (!fs.existsSync(filePath) || itemForChange?.selectedFilename === path.join(finalURL, filename)) {
+          if (!fs.existsSync(filePath) || itemForChange?.selectedFilename?.value === path.join(finalURL, filename)) {
             // Записываем содержимое в файл
-            const result = withQuestions ? await prompts({
-              type: 'confirm',
-              name: 'value',
-              message: `Запускаем генерацию  ${item.title}?`
-            }): {value: true}
-            if (!result.value) {
-              process.exit(1);
-            }
+            // const result = withQuestions ? await prompts({
+            //   type: 'confirm',
+            //   name: 'value',
+            //   message: `Запускаем генерацию  ${item.title}?`
+            // }): {value: true}
+            // if (!result.value) {
+            //   process.exit(1);
+            // }
             
             let needEdit = false;
             let generatedContentForChange = '';
@@ -290,6 +300,7 @@ async function run(){
               const content = safetyReadFileContent(filePath)?.trim() ?? ''
               const shortContext = extractShortContext(content)?.[0] ?? ''
               const finalContent = shortContext ? content.replace(shortContext, ''): content
+              console.log(content.length,)
               if (content) {
                 needEdit = true;
                 generatedContentForChange = finalContent
@@ -302,7 +313,8 @@ async function run(){
     
               const promptFinal = needEdit ? (
                 prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${generatedContentForChange})
-                и теперь нужно изменить его, а именно, ` + (await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'})).prompt
+                и теперь нужно изменить его, а именно, ` + (
+                  consolePrompt ? consolePrompt: await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'})).prompt
               ) : prompt;
               
               const fileContent = await generateText(promptFinal, model!)

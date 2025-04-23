@@ -1,0 +1,36 @@
+{
+  "name": "@ariran/neuro-server",
+  "version": "0.0.0",
+  "description": "Backend server for AI Editor component",
+  "main": "src/index.ts",
+  "bin": {
+    "neuro-server": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "cli": "tsx src/cli.ts -d ./src"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "openai": "^4.24.1",
+    "simple-git": "^3.22.0",
+    "tsx": "^4.19.3",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.6",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  }
+}

@@ -2,7 +2,7 @@
 .env
 node_modules
 docs*
-# consoleFull
+consoleFull
 calc
 clang
 audio
@@ -12,3 +12,6 @@ python-fastapi-example-main
 RubyExamples
 tests
 # glauth-master
+.testgen_cache.json
+error.log
+combined.log

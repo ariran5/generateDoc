@@ -10,7 +10,7 @@ ffmpeg.setFfmpegPath(ffpath)
 ffmpeg.setFfprobePath(ffPpath)
 
 
-export async function splitAudioFile(inputFilePath: string, outputDir: string, chunkSizeMB = 24) {
+export async function splitAudioFile(inputFilePath: string, outputDir: string, chunkSizeMB = 20) {
   // Обернутая функция для работы ffprobe с промисами
   const getMetadata = (filePath: string) => {
     return new Promise<ffmpeg.FfprobeData>((resolve, reject) => {
@@ -57,7 +57,8 @@ export async function splitAudioFile(inputFilePath: string, outputDir: string, c
         .on('error', (err) => {
           reject('Ошибка при разделении файла: ' + err);
         })
-        .save(path.join(outputDir, `${fileName}-%d.m4a`));
+        .save(path.join(outputDir, `${fileName}-%d.mp3`));
+        // .save(path.join(outputDir, `${fileName}-%d.m4a`));
     });
   } catch (error) {
     console.error(error);
@@ -67,20 +68,27 @@ export async function splitAudioFile(inputFilePath: string, outputDir: string, c
 
 
 async function transcribeFilesInFolder(inputFolderPath: string, outputFolderPath: string): Promise<void> {
-  const files = fs.readdirSync(inputFolderPath).filter(file => file.endsWith('.m4a'))
+  const files = fs.readdirSync(inputFolderPath).filter(file => file.endsWith('.mp3'))
+  // const files = fs.readdirSync(inputFolderPath).filter(file => file.endsWith('.m4a'))
 
   for (const file of files) {
     const filePath = path.join(inputFolderPath, file);
     const fileStream = fs.createReadStream(filePath);
     console.log(filePath, 'Начато')
-    const transcription = await transcribeFile(fileStream);
-    if (transcription !== null) {
-      const outputFilePath = path.join(outputFolderPath, `${path.basename(file, path.extname(file))}.txt`);
+    try {
+      const transcription = await transcribeFile(fileStream);
+      if (transcription !== null) {
+        const outputFilePath = path.join(outputFolderPath, `${path.basename(file, path.extname(file))}.txt`);
+        
+        fs.mkdirSync(path.dirname(outputFilePath), {recursive: true})
+        fs.writeFileSync(outputFilePath, transcription);
+  
+        console.log(`Транскрипция для файла ${file} успешно выполнена и записана в ${outputFilePath}.`);
+      }
       
-      fs.mkdirSync(path.dirname(outputFilePath), {recursive: true})
-      fs.writeFileSync(outputFilePath, transcription);
-
-      console.log(`Транскрипция для файла ${file} успешно выполнена и записана в ${outputFilePath}.`);
+    } catch (error) {
+      console.log(error)
+      throw error
     }
   }
 }
@@ -109,6 +117,7 @@ async function createSummaryFromTranscriptions(textFolderPath: string, outputSum
     const textContent = fs.readFileSync(filePath, 'utf-8');
     combinedText += `\n${textContent}`;
   }
+  console.log(combinedText)
 
   // Подготовка сообщения для суммаризации
   const messages = [
@@ -132,7 +141,8 @@ async function createSummaryFromTranscriptions(textFolderPath: string, outputSum
 }
 
 async function processAudioFiles(inputDir: string, audioOutputDir: string, textOutputDir: string, model: string): Promise<void> {
-  const files = fs.readdirSync(inputDir).filter(file => file.endsWith('.m4a'));
+  const files = fs.readdirSync(inputDir).filter(file => file.endsWith('.mp3'));
+  // const files = fs.readdirSync(inputDir).filter(file => file.endsWith('.m4a'));
 
   for (const file of files) {
     const inputFilePath = path.join(inputDir, file);
@@ -146,11 +156,11 @@ async function processAudioFiles(inputDir: string, audioOutputDir: string, textO
     fs.mkdirSync(textDir, { recursive: true });
 
     // Шаги по разделению и транскрибированию
-    // console.log(`Разделение файла: ${file}`);
-    // await splitAudioFile(inputFilePath, audioSplitDir);
+    console.log(`Разделение файла: ${file}`);
+    await splitAudioFile(inputFilePath, audioSplitDir);
 
-    // console.log(`Транскрибирование частей файла: ${file}`);
-    // await transcribeFilesInFolder(audioSplitDir, textDir);
+    console.log(`Транскрибирование частей файла: ${file}`);
+    await transcribeFilesInFolder(audioSplitDir, textDir);
 
     // Суммаризация транскрибированного текста текущего аудиофайла
     console.log(`Создание суммаризации для: ${file}`);
