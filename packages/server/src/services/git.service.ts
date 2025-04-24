@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { CustomError } from '../utils/errors';
 import * as fs from 'fs/promises';
 import path from 'path';
+import { Request } from 'express';
 
 export class GitService {
   private git: SimpleGit;
@@ -11,11 +12,15 @@ export class GitService {
     this.git = simpleGit();
   }
 
-  async commitChanges(filePath: string, content: string, message: string): Promise<void> {
+  async commitChanges(filePath: string, content: string, message: string, req: Request): Promise<void> {
     try {
-      // Ensure the file path is safe
-      const safePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
+      const workDir = req.app.locals.workingDir;
+      const absoluteFilePath = path.resolve(workDir, filePath);
       
+      // Ensure the file path is safe
+      const safePath = path.normalize(absoluteFilePath).replace(/^(\.\.[\/\\])+/, '');
+      
+      logger.info(`Committing changes to file: ${safePath}`);
       // Write the file
       await fs.writeFile(safePath, content, 'utf8');
       
@@ -30,8 +35,10 @@ export class GitService {
     }
   }
 
-  async pullChanges(): Promise<void> {
+  async pullChanges(req: Request): Promise<void> {
     try {
+      const workDir = req.app.locals.workingDir;
+      logger.info(`Pulling latest changes from directory: ${workDir}`);
       await this.git.pull();
       logger.info('Successfully pulled latest changes');
     } catch (error) {

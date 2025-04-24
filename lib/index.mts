@@ -1,4 +1,11 @@
-#!/usr/bin/env tsx --env-file=.env
+#!/usr/bin/env tsx
+import "dotenv/config.js";
+// import dotenv from 'dotenv';
+
+// const envPath = path.resolve(process.cwd(), '.env');
+// console.log('123', envPath)
+// dotenv.config({ path: envPath });
+
 import fs from 'fs';
 import path from 'path';
 import { Menu, MenuItem, ThemeMenuItem } from './json.mjs';
@@ -9,6 +16,7 @@ import { importUserFile } from './importFromUserFolder.mjs';
 import { extractShortContext, template } from './shortContext.mjs';
 import pc from 'picocolors';
 import { generateText } from './openAIClient.mjs'
+
 
 const argv = minimist<{
   config?: string
@@ -162,12 +170,31 @@ if (!fs.existsSync(docsPath)) {
 }
 
 const SidebarMenu = generateSidebar(menu)
-fs.writeFileSync(path.join(out, 'sidebar-menu.json'), JSON.stringify(SidebarMenu, null, ' '), 'utf-8');
+{
+  if (!fs.existsSync(path.join(out, 'sidebar-menu.json'))) {
+    fs.writeFileSync(path.join(out, 'sidebar-menu.json'), '{}', 'utf-8');
+  }
+
+  const oldSidebarMenu = fs.readFileSync(path.join(out, 'sidebar-menu.json'), 'utf-8')
+  if (oldSidebarMenu !== JSON.stringify(SidebarMenu, null, ' ')) {
+    fs.writeFileSync(path.join(out, 'sidebar-menu.json'), JSON.stringify(SidebarMenu, null, ' '), 'utf-8');
+    console.log(`Записан JSON для сайдбара документации`)
+  }
+}
 
 console.log(`Записан JSON для сайдбара документации`)
 const SidebarMenuWithFilenames = generateSidebar(menu, {widthExtension: true, withIndexFile: true,})
-fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), JSON.stringify(SidebarMenuWithFilenames, null, ' '), 'utf-8');
-console.log(`Записан JSON для сайдбара документации с расширениями`)
+{
+  if (!fs.existsSync(path.join(out, 'sidebar-menu-with-filenames.json'))) {
+    fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), '{}', 'utf-8');
+  }
+
+  const oldSidebarMenu = fs.readFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), 'utf-8')
+  if (oldSidebarMenu !== JSON.stringify(SidebarMenuWithFilenames, null, ' ')) {
+    fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), JSON.stringify(SidebarMenuWithFilenames, null, ' '), 'utf-8');
+    console.log(`Записан JSON для сайдбара документации с расширениями`)
+  }
+}
 
 function toPosixPath(str?: string) {
   if (!str) {
@@ -255,6 +282,9 @@ async function run(){
     })
     if (finded) {
       itemForChange = {selectedFilename: finded}
+    } else {
+      console.log(pc.red('Страницы с таким названием нет'))
+      process.exit(1);
     }
   }
 
@@ -289,7 +319,7 @@ async function run(){
           }
           
           // Если нет файла, то создаем
-          if (!fs.existsSync(filePath) || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
+          if ((!fs.existsSync(filePath) && !itemForChange) || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
             // Записываем содержимое в файл
             // const result = withQuestions ? await prompts({
             //   type: 'confirm',
@@ -329,20 +359,12 @@ async function run(){
                 console.log('Не удачная генерация, какая-то проблема')
                 process.exit(1);
               }
-  
-              const optimizedContextContent = isOptimizedContext ? await generateText(`
-              У меня есть файл, в этом файле есть такой текст:
-              ${fileContent}
-  
-              Расскажи коротко о том, что в этом файле, но не упускай важные моменты.
-              `, model!): undefined
-      
-              fs.writeFileSync(
-                filePath,
-                fileContent + (isOptimizedContext ? template(optimizedContextContent!): ''),
-                'utf8'
-              );
+
               console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
+
+              if (changeMode && consolePrompt) {
+                process.exit(0);
+              }
       
               needEdit = withQuestions ? (await prompts({
                 type: 'confirm',
@@ -353,8 +375,6 @@ async function run(){
               if (needEdit) {
                 generatedContentForChange = fileContent
                 continue;
-              } else if (changeMode) {
-                process.exit(0);
               }
       
               // @ts-ignore
@@ -367,9 +387,9 @@ async function run(){
                   text: fileContent,
                 }
                 
-                if (isOptimizedContext && optimizedContextContent) {
-                  historyItem.optimizedContext = optimizedContextContent
-                }
+                // if (isOptimizedContext && optimizedContextContent) {
+                //   historyItem.optimizedContext = optimizedContextContent
+                // }
   
                 history.push(historyItem)
               }

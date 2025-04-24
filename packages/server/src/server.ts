@@ -16,14 +16,17 @@ interface ServerOptions {
 export async function startServer(options: ServerOptions): Promise<void> {
   dotenv.config();
 
-  // Set working directory if provided
+  const app = express();
+  
+  // Store working directory in app.locals
   if (options.workingDir) {
     const fullPath = path.resolve(process.cwd(), options.workingDir);
-    process.chdir(fullPath);
+    app.locals.workingDir = fullPath;
     logger.info(`Working directory set to: ${fullPath}`);
+  } else {
+    app.locals.workingDir = process.cwd();
   }
 
-  const app = express();
   const port = process.env.PORT || 3000;
 
   // Middleware
@@ -42,14 +45,11 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // Error handling
   app.use(errorHandler);
 
-  app.listen(port, () => {
-    logger.info(`Server running on port ${port}`);
-  }); 
-  
   // Start server
   return new Promise((resolve, reject) => {
     const server = app.listen(options.port, options.host, () => {
       logger.info(`Server running at http://${options.host}:${options.port}`);
+      logger.info(`Working directory: ${app.locals.workingDir}`);
       resolve();
     });
     

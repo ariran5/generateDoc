@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { body } from 'express-validator';
 import { validate } from '../middleware/validation';
 import { AIService } from '../services/ai.service';
@@ -13,7 +13,6 @@ const gitService = new GitService();
 const editValidation = [
   body('prompt').notEmpty().trim(),
   body('filePath').notEmpty(),
-  body('currentContent').notEmpty(),
   validate
 ];
 
@@ -25,12 +24,12 @@ const commitValidation = [
 ];
 
 // Routes
-router.post('/', editValidation, async (req, res, next) => {
+router.post('/', editValidation, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { prompt, filePath, currentContent } = req.body;
+    const { prompt, filePath } = req.body;
     
     logger.info(`Processing AI edit request for file: ${filePath}`);
-    const content = await aiService.processEdit(prompt, currentContent);
+    const content = await aiService.processEdit(prompt, filePath);
     
     res.json({ content });
   } catch (error) {
@@ -38,12 +37,12 @@ router.post('/', editValidation, async (req, res, next) => {
   }
 });
 
-router.post('/commit', commitValidation, async (req, res, next) => {
+router.post('/commit', commitValidation, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filePath, content, message } = req.body;
     
     logger.info(`Committing changes to file: ${filePath}`);
-    await gitService.commitChanges(filePath, content, message);
+    await gitService.commitChanges(filePath, content, message, req);
     
     res.json({ success: true });
   } catch (error) {
@@ -51,10 +50,10 @@ router.post('/commit', commitValidation, async (req, res, next) => {
   }
 });
 
-router.post('/pull', async (req, res, next) => {
+router.post('/pull', async (req: Request, res: Response, next: NextFunction) => {
   try {
     logger.info('Pulling latest changes');
-    await gitService.pullChanges();
+    await gitService.pullChanges(req);
     
     res.json({ success: true });
   } catch (error) {

@@ -1,10 +1,10 @@
 {
   "name": "@ariran/neuro-server",
-  "version": "0.0.0",
+  "version": "0.0.6",
   "description": "Backend server for AI Editor component",
   "main": "src/index.ts",
   "bin": {
-    "neuro-server": "./src/cli.js"
+    "neuro-server": "src/cli.ts"
   },
   "scripts": {
     "start": "tsx src/index.ts",
