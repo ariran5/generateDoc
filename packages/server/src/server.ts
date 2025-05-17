@@ -14,7 +14,7 @@ interface ServerOptions {
 }
 
 export async function startServer(options: ServerOptions): Promise<void> {
-  dotenv.config();
+  dotenv.config({ path: ['.env.local', '.env', '.env.development', '.env.production'] });
 
   const app = express();
   
@@ -26,8 +26,6 @@ export async function startServer(options: ServerOptions): Promise<void> {
   } else {
     app.locals.workingDir = process.cwd();
   }
-
-  const port = process.env.PORT || 3000;
 
   // Middleware
   app.use(cors({

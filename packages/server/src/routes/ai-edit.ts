@@ -13,8 +13,12 @@ const gitService = new GitService();
 const editValidation = [
   body('prompt').notEmpty().trim(),
   body('filePath').notEmpty(),
+  body('openrouterOptions').isObject(),
+  body('openrouterOptions.model').isString(),
   validate
 ];
+
+
 
 const commitValidation = [
   body('filePath').notEmpty(),
@@ -26,12 +30,15 @@ const commitValidation = [
 // Routes
 router.post('/', editValidation, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { prompt, filePath } = req.body;
+    const { prompt, filePath, openrouterOptions } = req.body;
     
     logger.info(`Processing AI edit request for file: ${filePath}`);
-    const content = await aiService.processEdit(prompt, filePath);
-    
-    res.json({ content });
+    try {
+      const aiRes = await aiService.processEdit(prompt, filePath, openrouterOptions);
+      res.json(aiRes);
+    } catch (error) {
+      next(error);
+    }
   } catch (error) {
     next(error);
   }
