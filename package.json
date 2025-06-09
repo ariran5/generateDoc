@@ -1,6 +1,6 @@
 {
   "name": "@ariran/neuro-docs",
-  "version": "1.10.5",
+  "version": "1.10.6",
   "main": "./lib/index.mts",
   "bin": {
     "neuro-docs": "./lib/index.mts",

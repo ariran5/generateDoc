@@ -293,15 +293,15 @@ async function run(){
     for (const item of items) {
       const isContentItem = 'content' in item;
       const dontUsePreviousFilesAsContext = findValueByKeyFromMenuPath([...menupath, item], 'dontUsePreviousFilesAsContext')
-      const isOptimizedContext = findValueByKeyFromMenuPath([...menupath, item], 'optimizedContext')
 
       if (isContentItem) {
-        const { title, content, dir, filename, items: subItems } = item;
+        const { title, dir, filename, items: subItems } = item;
 
         console.log('Начата генерация: ' + title);
     
         if (!filename) {
-          console.log('Нет имени файла: ' + item.title);
+          console.log('Нет имени файла в JSON конфиге: ' + item.title);
+          process.exit(1);
         }
   
         // Определяем директорию: используем указанную или базовую
@@ -318,26 +318,28 @@ async function run(){
             console.log(`Создана директория: ${finalDir}`);
           }
           
+          if (changeMode && consolePrompt) {
+            if (toPosixPath(itemForChange?.selectedFilename?.value) !== toPosixPath(path.posix.join(finalURL, filename))) {
+              
+            }
+          }
           // Если нет файла, то создаем
-          if ((!fs.existsSync(filePath) && !itemForChange) || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
-            // Записываем содержимое в файл
-            // const result = withQuestions ? await prompts({
-            //   type: 'confirm',
-            //   name: 'value',
-            //   message: `Запускаем генерацию  ${item.title}?`
-            // }): {value: true}
-            // if (!result.value) {
-            //   process.exit(1);
-            // }
+          if (
+            !fs.existsSync(filePath) 
+            || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
+
+            if (itemForChange && !fs.existsSync(filePath)) {
+              console.log(pc.red(`Нельзя полностью восстановить контекст, так как файл ${filePath} не существует`))
+              process.exit(1);
+            }
             
             let needEdit = false;
             let generatedContentForChange = '';
 
             if (itemForChange?.selectedFilename) {
               const content = safetyReadFileContent(filePath)?.trim() ?? ''
-              const shortContext = extractShortContext(content)?.[0] ?? ''
-              const finalContent = shortContext ? content.replace(shortContext, ''): content
-              console.log(content.length,)
+              const finalContent = content
+
               if (content) {
                 needEdit = true;
                 generatedContentForChange = finalContent
@@ -360,6 +362,12 @@ async function run(){
                 process.exit(1);
               }
 
+              fs.writeFileSync(
+                filePath,
+                fileContent,
+                'utf8'
+              );
+
               console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
 
               if (changeMode && consolePrompt) {
@@ -377,52 +385,27 @@ async function run(){
                 continue;
               }
       
-              // @ts-ignore
-              const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
-      
-              if (!dontAddToContext) {
-                const historyItem: HistoryItem = {
-                  item,
-                  filePath,
-                  text: fileContent,
-                }
-                
-                // if (isOptimizedContext && optimizedContextContent) {
-                //   historyItem.optimizedContext = optimizedContextContent
-                // }
-  
-                history.push(historyItem)
-              }
             } while (needEdit)
-          } else {
-            // Восстанавливаем контекст если файл уже есть
-            // @ts-ignore
-            const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
-            if (!dontAddToContext) {
-              const fileContent = safetyReadFileContent(filePath)!
+          }
 
-              const historyItem: HistoryItem = {
-                item,
-                filePath,
-                text: fileContent,
-              }
-              const match = extractShortContext(fileContent)
+          // Восстанавливаем контекст если файл уже есть
+          // @ts-ignore
+          const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
+          if (!dontAddToContext) {
+            const fileContent = safetyReadFileContent(filePath)!
 
-              if (match) {
-                const [fullMatch, optimizedContextContent] = match
-
-                historyItem.text = historyItem.text.replace(fullMatch, '')
-
-
-                if (isOptimizedContext) {
-                  historyItem.optimizedContext = optimizedContextContent.trim()
-                }
-              }
-
-              history.push(historyItem)
-
-              console.log(pc.yellow(`Восстановлен контекст ${item.title} из файла ` + filePath))
+            const historyItem: HistoryItem = {
+              item,
+              filePath,
+              text: fileContent,
             }
+            if (!fileContent) {
+              console.log(fileContent, filePath)
+            }
+
+            history.push(historyItem)
+
+            console.log(pc.yellow(`Восстановлен контекст ${item.title} из файла ` + filePath))
           }
         }
   
@@ -435,8 +418,8 @@ async function run(){
           });
         }
       } else {
-        const { title, dir, items: subItems } = item;
-        console.log('Начата генерация: ' + title);
+        const { dir, items: subItems } = item;
+        // console.log('Начата генерация: ' + title);
   
         // Определяем директорию: используем указанную или базовую
         const finalURL = dir ? path.join(baseDir, dir.replace('/', '')) : baseDir;

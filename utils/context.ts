@@ -19,26 +19,27 @@ export async function createOptimizedContext(
     return limit(async () => {
       const stat = fs.statSync(file)
       const content = fs.readFileSync(file, 'utf-8')
-      const result = await fn(
-        ` I has this file with programming code with extension ${path.extname(file)}.
-        I want to get technical information about the file. I am testing the code in this file and need data on the functions it provides, their input and output parameters, and other objects present in the file, but write concisely and provide only the technical details without explanations.
+      // const result = await fn(
+      //   ` I has this file with programming code with extension ${path.extname(file)}.
+      //   I want to get technical information about the file. I am testing the code in this file and need data on the functions it provides, their input and output parameters, and other objects present in the file, but write concisely and provide only the technical details without explanations.
 
-        Don't use markdown. Respond me with pure text without formatting.
+      //   Don't use markdown. Respond me with pure text without formatting.
 
-        ${content}
-        `,
-        // @ts-ignore
-        model,
-      )
+      //   ${content}
+      //   `,
+      //   // @ts-ignore
+      //   model,
+      // )
 
-      if (!result) {
-        return
-      }
+      // if (!result) {
+      //   return
+      // }
 
       optimized[file] = {
         createdAt: stat.ctimeMs,
         updatedAt: stat.mtimeMs,
-        result: result,
+        // result: result,
+        result: null,
         generatedFile: '',
         generated: false,
       }
