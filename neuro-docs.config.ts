@@ -41,7 +41,6 @@ ${
 Путь до файла: ${item.filePath}
 Контент: ${item.optimizedContext || item.text}
 
-
 `)
 }
   Напиши мне код для этого файла: ${item.title}
@@ -51,6 +50,10 @@ ${item.content}
 
 Напиши только код без вспомогательных символов, который можно сразу вставить в файл
   `
+}
+
+export const postProcess = (content: string) => {
+  return content.split('\n').reverse().join('\n')
 }
 
 // export const question: QuestionFN = (

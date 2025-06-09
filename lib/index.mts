@@ -15,8 +15,9 @@ import minimist from 'minimist';
 import { importUserFile } from './importFromUserFolder.mjs';
 import { generateSidebar, SidebarItem } from './sidebar.mjs';
 import pc from 'picocolors';
-import { generateText } from './openAIClient.mjs'
+import { createCompletention } from './openAIClient2.mjs'
 
+const noop = (content: string, context: FN_Context) => content
 
 const argv = minimist<{
   config?: string
@@ -76,6 +77,15 @@ console.log(pc.bgGreen(pc.white('Модель: ' + model)))
 
 const __dirname = process.cwd();
 
+type FN_Context = {
+  item: ThemeMenuItem,
+  menupath: [Menu, ...MenuItem[]],
+  history: HistoryItem[],
+  sidebar: {
+    sidebar: Record<string, SidebarItem[]>,
+    sidebarWithFilenames: Record<string, SidebarItem[]>
+  }
+}
 export type QuestionFN = (
   item: ThemeMenuItem,
   menupath: [Menu, ...MenuItem[]],
@@ -86,16 +96,18 @@ export type QuestionFN = (
   }
 ) => string
 
-
+export type PostProcessFN = (content: string, context: FN_Context) => string
 // Пример обновленного меню документации с указанием директорий
 const module = (await importUserFile(config)) as {
   question: QuestionFN,
   menu: Menu[]
+  postProcess?: PostProcessFN
 };
 
 const {
   menu,
   question,
+  postProcess = noop
 } = module
 
 
@@ -120,7 +132,7 @@ const SidebarMenu = generateSidebar(menu)
 }
 
 console.log(`Записан JSON для сайдбара документации`)
-const SidebarMenuWithFilenames = generateSidebar(menu, {withExtension: true, withIndexFile: true, extension: '.md'})
+const SidebarMenuWithFilenames = generateSidebar(menu, {withExtension: true, withIndexFile: true, extension})
 {
   if (!fs.existsSync(path.join(out, 'sidebar-menu-with-filenames.json'))) {
     fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), '{}', 'utf-8');
@@ -275,16 +287,6 @@ async function run(){
           fileContent = await generateFile(item)
         }
 
-        if (fileContent) {
-          fs.writeFileSync(
-            filePath,
-            fileContent,
-            'utf8'
-          );
-
-          console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
-        }
-
 
         async function generateFile(item: ThemeMenuItem){
           let needEdit = Boolean(itemForChange?.value);
@@ -303,7 +305,24 @@ async function run(){
               )
             ) : prompt;
             
-            const fileContent = await generateText(promptFinal, model!)
+            const res = await createCompletention({
+              model: model!,
+              messages: [
+                {
+                  role: 'system',
+                  content: `
+                  Ответ должен быть в формате markdown, который поддерживается vitepress, а значит имеет некоторые расширенные возможности. Можно их использовать.
+                  `
+                },
+                {
+                  role: 'user',
+                  content: promptFinal
+                }
+              ],
+            })
+
+            const fileContent = res.choices[0].message.content
+
             if (!fileContent) {
               console.log('Не удачная генерация, какая-то проблема')
               process.exit(1);
@@ -313,6 +332,26 @@ async function run(){
             if (changeMode && consolePrompt) {
               // Если changeMode и consolePrompt, то выходим, так как генерация разовая
               process.exit(0);
+            }
+
+            if (fileContent) {
+              let finalNewFileContent = fileContent
+              if (postProcess) {
+                finalNewFileContent = postProcess(fileContent, {
+                  item,
+                  menupath,
+                  history: dontUsePreviousFilesAsContext ? []: history,
+                  sidebar: {sidebar: SidebarMenu, sidebarWithFilenames: SidebarMenuWithFilenames}
+                })
+              }
+
+              fs.writeFileSync(
+                filePath,
+                finalNewFileContent,
+                'utf8'
+              );
+
+              console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
             }
     
             needEdit = withQuestions ? (await prompts({
