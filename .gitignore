@@ -1,5 +1,10 @@
 .DS_Store
 .env
+packages/codereview
+packages/test-interface-deep2
+packages/test-interface-deep2-fullcontext
+packages/test-interface-gigachat
+packages/test-interface-gigachat-full
 node_modules
 docs*
 consoleFull

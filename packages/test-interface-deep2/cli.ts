@@ -21,6 +21,7 @@ program
   .requiredOption('-m, --model <model>', 'AI model')
   .option('--ref <string>', 'project files for reference files for best result', collect, [])
   .option('-o, --out-dir <dir>', 'Output directory', 'tests')
+  .option('--manual-cases', 'Output directory', 'tests')
   // .option('--ignore-patterns', 'Ignore external dependencies', true)
   .action(async (patterns, options) => {
 

@@ -4,9 +4,9 @@
   "prompt_tokens": 6473,
   "total_tokens": 10558,
   "gpt-4o": {
-   "completion_tokens": 109008,
-   "prompt_tokens": 1449637,
-   "total_tokens": 1558645
+   "completion_tokens": 111114,
+   "prompt_tokens": 1459049,
+   "total_tokens": 1570163
   },
   "o1-preview": {
    "completion_tokens": 20051,
@@ -29,9 +29,24 @@
    "total_tokens": 118714
   },
   "deepseek/deepseek-chat": {
-   "completion_tokens": 102081,
-   "prompt_tokens": 290498,
-   "total_tokens": 392579
+   "completion_tokens": 118750,
+   "prompt_tokens": 352850,
+   "total_tokens": 471600
+  },
+  "deepseek/deepseek-r1-distill-qwen-32b": {
+   "completion_tokens": 111806,
+   "prompt_tokens": 195513,
+   "total_tokens": 307319
+  },
+  "google/gemini-2.5-pro-exp-03-25:free": {
+   "completion_tokens": 19614,
+   "prompt_tokens": 6120,
+   "total_tokens": 20045
+  },
+  "google/gemini-2.5-flash-preview-05-20": {
+   "completion_tokens": 3619,
+   "prompt_tokens": 6892,
+   "total_tokens": 10511
   }
  }
 }

@@ -138,7 +138,7 @@ export class CodeAnalyzer {
       yield 3;
 
       if (missing.length > 0) {
-        console.warn('\nMissing files:\n', missing.join('\n'));
+        console.warn('\n\nMissing files:\n' + missing.join('\n') + '\n');
       } else {
         return [baseFile, ...contexts];
       }

@@ -108,10 +108,30 @@ export async function run(pathPattern: string, options: RunProps) {
   }
 
   const littleContext = read()
-  const stringAboutFilesFromSmallContext = getContextAsString(
-    littleContext,
-    [...new Set([...files, ...filteredRefFiles])]
-  )
+  // const stringAboutFilesFromSmallContext = getContextAsString(
+  //   littleContext,
+  //   [...new Set([...files, ...filteredRefFiles])]
+  // )
+  const stringAboutFilesFromSmallContext = `
+  This is my files about i know.
+
+  ==== begin files block =====
+  
+  ${
+    allRefFiles.map(item => {
+      return `
+      File Path: ${item}
+      --- start file ${item} ---
+      (${fs.readFileSync(item, 'utf-8')})
+
+      --- end file ${item} ---
+
+      `
+    })
+  }
+
+  ==== end files block =====
+  `
 
   const baseContext = (path: string) => {    
     return `

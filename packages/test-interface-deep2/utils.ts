@@ -40,36 +40,20 @@ function extractText(text: string) {
   return null;
 };
 
-export const extractJson = (text: string) => {
+export const extractJson = (text: string): string | null => {
   // Пробуем извлечь JSON из \`\`\`json ... \`\`\`
   const result = extractText(text)
 
-  if (!result) {
-    return result;
+  try {
+    // if don't exept then valid json string
+    JSON.parse(result);
+
+    return result
+  } catch (error) {
+
   }
 
-  try {
-    JSON.parse(result)
-    return result;
-  } catch (error) {
-    try {
-      const object = eval(result)
-      if (typeof object === 'object') {
-        return JSON.stringify(object)
-      }
-      return null;
-    } catch (error) {
-      const finalTry = result
-        .replaceAll(/":.?`/g, '": "')
-        .replaceAll(/`.?,/g, '",')
-      
-      try {
-        return JSON.parse(finalTry);
-      } catch (error) {
-        return null;
-      }
-    }
-  }
+  return null
 };
 
 

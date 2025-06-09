@@ -13,7 +13,7 @@ import OpenAI from 'openai';
 import prompts from 'prompts';
 import minimist from 'minimist';
 import { importUserFile } from './importFromUserFolder.mjs';
-import { extractShortContext, template } from './shortContext.mjs';
+import { generateSidebar, SidebarItem } from './sidebar.mjs';
 import pc from 'picocolors';
 import { generateText } from './openAIClient.mjs'
 
@@ -76,16 +76,6 @@ console.log(pc.bgGreen(pc.white('Модель: ' + model)))
 
 const __dirname = process.cwd();
 
-export type SidebarItem = {
-  text?: string
-  link?: string
-  items?: SidebarItem[]
-  collapsed?: boolean
-  base?: string
-  docFooterText?: string
-  rel?: string
-  target?: string
-}
 export type QuestionFN = (
   item: ThemeMenuItem,
   menupath: [Menu, ...MenuItem[]],
@@ -109,59 +99,6 @@ const {
 } = module
 
 
-interface GenerateSidebarOptions {
-  widthExtension: boolean
-  withIndexFile: boolean
-}
-
-const defaultObject: GenerateSidebarOptions = {
-  widthExtension: false,
-  withIndexFile: false
-}
-
-function addLastSymbolIfMissing(str: string, symbol: string) {
-  if (!str.endsWith(symbol)) {
-    return str + symbol;
-  }
-  return str;
-}
-
-function generateSidebar(menu: Menu[], {widthExtension, withIndexFile,} = defaultObject): Record<string, SidebarItem[]> {
-  const traverse = (items: MenuItem[], baseDir = ''): SidebarItem[] => {
-    return items.map(item => {
-      const { dir, filename,} = item
-      const pathWithDir = dir ? path.posix.join(baseDir, dir) : baseDir
-      const pathWithFilename = filename ? path.posix.join(pathWithDir, filename) : baseDir
-
-      let finalPathWithFilename = pathWithFilename
-      if (!withIndexFile) {
-        finalPathWithFilename = finalPathWithFilename.replace('index' + extension, '')
-      }
-      if (!widthExtension) {
-        finalPathWithFilename = finalPathWithFilename.replace(extension, '')
-      }
-      
-      const sidebarItem: SidebarItem = {
-        text: item.title,
-        link: finalPathWithFilename,
-      };
-      if (!filename) {
-        delete sidebarItem.link
-      }
-      if (item.items && item.items.length > 0) {
-        sidebarItem.items = traverse(item.items, pathWithDir);
-      }
-      return sidebarItem;
-    });
-  };
-
-  return menu.reduce<Record<string, SidebarItem[]>>((acc, item) => {
-    const base = addLastSymbolIfMissing(item.base, '/')
-    acc[base] = traverse(item.items, base)
-    return acc
-  }, {})
-}
-
 // Убедитесь, что базовая директория out существует
 const docsPath = path.join(__dirname, out);
 if (!fs.existsSync(docsPath)) {
@@ -183,7 +120,7 @@ const SidebarMenu = generateSidebar(menu)
 }
 
 console.log(`Записан JSON для сайдбара документации`)
-const SidebarMenuWithFilenames = generateSidebar(menu, {widthExtension: true, withIndexFile: true,})
+const SidebarMenuWithFilenames = generateSidebar(menu, {withExtension: true, withIndexFile: true, extension: '.md'})
 {
   if (!fs.existsSync(path.join(out, 'sidebar-menu-with-filenames.json'))) {
     fs.writeFileSync(path.join(out, 'sidebar-menu-with-filenames.json'), '{}', 'utf-8');
@@ -208,7 +145,6 @@ export type HistoryItem = {
   item: MenuItem
   text: string
   filePath: string
-  optimizedContext?: string
 }
 
 
@@ -262,28 +198,35 @@ async function run(){
     menupath: [Menu, ...MenuItem[]]
   }
 
-  function findValueByKeyFromMenuPath<T extends keyof Menu | keyof MenuItem>(path: [Menu, ...MenuItem[]], key: T): boolean {
+  function findValueByKeyFromMenuPath<T extends keyof Menu | keyof MenuItem>(
+    path: [Menu, ...MenuItem[]],
+    key: T
+  ): boolean {
     // @ts-ignore
     return Boolean(path.toReversed().find(item => key in item)?.[key])
   }
 
   // если changeMode - boolean, то выбираем страницу для изменения, если changeMode - string, то используем этот prompt
-  let itemForChange: {selectedFilename: {title: string, value: string}} | null = null
+  let itemForChange: {title: string, value: string} | null = null
   if (typeof changeMode === 'boolean' && changeMode) {
-    itemForChange = await prompts({
+    const value = await prompts({
       type: 'autocomplete',
       name: 'selectedFilename',
       message: 'Выберите страницу которую нужно изменить',
       choices: pagesListForChanges(),
     })
+    if (value) {
+      itemForChange = pagesListForChanges().find(item => item.value === value.selectedFilename)!
+    }
+
   } else if (typeof changeMode === 'string') {
     const finded = pagesListForChanges().find(item => {
       return path.posix.normalize(item.value) === path.posix.normalize('/' + changeMode)
     })
     if (finded) {
-      itemForChange = {selectedFilename: finded}
+      itemForChange = finded
     } else {
-      console.log(pc.red('Страницы с таким названием нет'))
+      console.log(pc.red('Страницы по этому пути нет'))
       process.exit(1);
     }
   }
@@ -298,7 +241,7 @@ async function run(){
         const { title, dir, filename, items: subItems } = item;
 
         console.log('Начата генерация: ' + title);
-    
+
         if (!filename) {
           console.log('Нет имени файла в JSON конфиге: ' + item.title);
           process.exit(1);
@@ -309,104 +252,103 @@ async function run(){
         const finalDir = path.join(__dirname, out, finalURL)
         const filePath = path.join(finalDir, filename);
 
-        await generateFile(item)
           
-        async function generateFile(item: ThemeMenuItem){
-          // Создать директорию, если необходимо
-          if (!fs.existsSync(finalDir)) {
-            fs.mkdirSync(finalDir, { recursive: true });
-            console.log(`Создана директория: ${finalDir}`);
-          }
-          
-          if (changeMode && consolePrompt) {
-            if (toPosixPath(itemForChange?.selectedFilename?.value) !== toPosixPath(path.posix.join(finalURL, filename))) {
-              
-            }
-          }
-          // Если нет файла, то создаем
-          if (
-            !fs.existsSync(filePath) 
-            || toPosixPath(itemForChange?.selectedFilename?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
+        // Создать директорию, если необходимо
+        if (!fs.existsSync(finalDir)) {
+          fs.mkdirSync(finalDir, { recursive: true });
+          console.log(`Создана директория: ${finalDir}`);
+        }
 
-            if (itemForChange && !fs.existsSync(filePath)) {
-              console.log(pc.red(`Нельзя полностью восстановить контекст, так как файл ${filePath} не существует`))
+        // if (changeMode && consolePrompt) {
+        //   if (toPosixPath(itemForChange?.value) !== toPosixPath(path.posix.join(finalURL, filename))) {
+            
+        //   }
+        // }
+
+        let fileContent: string | undefined
+
+        if (!fs.existsSync(filePath)) {
+          fileContent = await generateFile(item)
+        }
+
+        if (toPosixPath(itemForChange?.value) === toPosixPath(path.posix.join(finalURL, filename))) {
+          fileContent = await generateFile(item)
+        }
+
+        if (fileContent) {
+          fs.writeFileSync(
+            filePath,
+            fileContent,
+            'utf8'
+          );
+
+          console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
+        }
+
+
+        async function generateFile(item: ThemeMenuItem){
+          let needEdit = Boolean(itemForChange?.value);
+          let generatedContentForChange = fs.existsSync(filePath) ? safetyReadFileContent(filePath) : '';
+  
+          do {
+            // Генерируем содержание с помощью OpenAI
+            const prompt = question(item, menupath, dontUsePreviousFilesAsContext ? []: history, {sidebar: SidebarMenu, sidebarWithFilenames: SidebarMenuWithFilenames})
+  
+            const promptFinal = needEdit ? (
+              prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${generatedContentForChange})
+              и теперь нужно изменить его, а именно, ` + (
+                consolePrompt ? 
+                  consolePrompt:
+                  await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'}).then(res => res.prompt)
+              )
+            ) : prompt;
+            
+            const fileContent = await generateText(promptFinal, model!)
+            if (!fileContent) {
+              console.log('Не удачная генерация, какая-то проблема')
               process.exit(1);
             }
-            
-            let needEdit = false;
-            let generatedContentForChange = '';
 
-            if (itemForChange?.selectedFilename) {
-              const content = safetyReadFileContent(filePath)?.trim() ?? ''
-              const finalContent = content
 
-              if (content) {
-                needEdit = true;
-                generatedContentForChange = finalContent
-              }
+            if (changeMode && consolePrompt) {
+              // Если changeMode и consolePrompt, то выходим, так как генерация разовая
+              process.exit(0);
             }
     
-            do {
-              // Генерируем содержание с помощью OpenAI
-              const prompt = question(item, menupath, dontUsePreviousFilesAsContext ? []: history, {sidebar: SidebarMenu, sidebarWithFilenames: SidebarMenuWithFilenames})
+            needEdit = withQuestions ? (await prompts({
+              type: 'confirm',
+              name: 'value',
+              message: `Изменить эту генерацию ${item.title}?`
+            })).value : false;
+  
+            if (needEdit) {
+              generatedContentForChange = fileContent
+              continue;
+            } else {
+              return fileContent
+            }
     
-              const promptFinal = needEdit ? (
-                prompt + '\n' + `Контент для этого вопроса уже был создан, вот он (${generatedContentForChange})
-                и теперь нужно изменить его, а именно, ` + (
-                  consolePrompt ? consolePrompt: await prompts({type: 'text', name: 'prompt', message: 'Что изменить ?'})).prompt
-              ) : prompt;
-              
-              const fileContent = await generateText(promptFinal, model!)
-              if (!fileContent) {
-                console.log('Не удачная генерация, какая-то проблема')
-                process.exit(1);
-              }
+          } while (needEdit)
+        }
 
-              fs.writeFileSync(
-                filePath,
-                fileContent,
-                'utf8'
-              );
+        // Восстанавливаем контекст если файл уже есть
+        // @ts-ignore
+        const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
+        if (!dontAddToContext) {
+          const fileContent = safetyReadFileContent(filePath)!
 
-              console.log('\x1b[36m%s\x1b[0m', `Файл ${filePath} был сгенерирован.`);
-
-              if (changeMode && consolePrompt) {
-                process.exit(0);
-              }
-      
-              needEdit = withQuestions ? (await prompts({
-                type: 'confirm',
-                name: 'value',
-                message: `Изменить эту генерацию ${item.title}?`
-              })).value : false;
-    
-              if (needEdit) {
-                generatedContentForChange = fileContent
-                continue;
-              }
-      
-            } while (needEdit)
+          const historyItem: HistoryItem = {
+            item,
+            filePath,
+            text: fileContent,
+          }
+          if (!fileContent) {
+            console.log(fileContent, filePath)
           }
 
-          // Восстанавливаем контекст если файл уже есть
-          // @ts-ignore
-          const dontAddToContext = findValueByKeyFromMenuPath([...menupath, item], 'dontAddToContext')
-          if (!dontAddToContext) {
-            const fileContent = safetyReadFileContent(filePath)!
+          history.push(historyItem)
 
-            const historyItem: HistoryItem = {
-              item,
-              filePath,
-              text: fileContent,
-            }
-            if (!fileContent) {
-              console.log(fileContent, filePath)
-            }
-
-            history.push(historyItem)
-
-            console.log(pc.yellow(`Восстановлен контекст ${item.title} из файла ` + filePath))
-          }
+          console.log(pc.yellow(`Восстановлен контекст ${item.title} из файла ` + filePath))
         }
   
         // Обрабатываем подуровни, если они существуют

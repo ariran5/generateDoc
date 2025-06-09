@@ -4,6 +4,7 @@ import { FileContext, RunProps, } from './types';
 import { extractJson, tryes } from './utils'
 
 import pLimit from 'p-limit'
+import path from 'path';
 
 const limit = pLimit(1)
 
@@ -21,7 +22,7 @@ export class TestGenerator {
         model: this.props.model,
         messages: [
           {
-            role: 'system',
+            role: 'user',
             content: `
             Generate ${this.props.framework} tests for ${
               this.props.language
@@ -78,7 +79,7 @@ export class TestGenerator {
       const response = await createCompletention({
         messages: [
           {
-            role: 'system',
+            role: 'user',
             content: `
               We have ${array.length} test samples based on ${this.props.framework} and ${this.props.language}.
   
@@ -105,6 +106,11 @@ export class TestGenerator {
         ],
         model: this.props.model,
       })
+
+      if (!response?.choices?.[0]) {
+        console.log(response)
+        throw new Error('No choises from LLM')
+      }
   
       const content = response.choices[0].message.content
   
@@ -156,7 +162,7 @@ export class TestGenerator {
     const testCases = await this.generateTestCases(context);
 
     if (!testCases) {
-      throw new Error(`Нет тест кейсов. Не удастся сгенерировать тесты.`)
+      throw new Error(`No test cases. I try 2 times, but i can't generate it.`)
     }
     
     yield 1;
@@ -176,6 +182,11 @@ export class TestGenerator {
     [base, ...context]: FileContext[],
   ) {
 
+    const outPath = path.join(
+      this.props.outDir,
+      path.relative(this.props.baseDir, base.path)
+    ).replace(/(\.[^/.]+)+$/, `.test$&`);
+
     let tries = 2;
 
     do {
@@ -192,11 +203,17 @@ export class TestGenerator {
           `
         }, {
           role: "user",
-          content: `Generate test scenarios for ${base.path}
-          My code: ${base.content}
+          content: `
+          Need unit tests for my code.
+          You are senior developer with big salary and need very good result.
+          Need test any parameters for functions, test for return values. Try type for 100% test coverage.
+
+          Generate test cases for ${base.path},
+          This final path of test file for correct imports: ${outPath},
+          My code: (${base.content})
 
 
-          including edge cases and error handling.
+          ====
           Respond in JSON format without mardown: {
             cases: [{
               // what is this case
@@ -248,6 +265,10 @@ export class TestGenerator {
     [base, ...context]: FileContext[], 
     testCases: any[],
   ) {
+    const outPath = path.join(
+      this.props.outDir,
+      path.relative(this.props.baseDir, base.path)
+    ).replace(/(\.[^/.]+)+$/, `.test$&`);
 
     const result = await tryes(async () => {
 
@@ -257,12 +278,23 @@ export class TestGenerator {
           role: "system",
           content: `Generate ${this.props.framework} tests for ${
             this.props.language
-          }. Follow best practices. Include:\n- Test descriptions\n- Proper mocks\n- Clean assertions
+          }. 
+          Follow best practices.
           
+          Need unit tests for my code.
+          You are senior developer with big salary and need very good result.
+          Need test any parameters for functions, test for return values. Try type for 100% test coverage.
+
+          This final path for new test file for correct imports: ${outPath}, use this information for correct imports,
+          Generate test cases for ${base.path},
+          My code: (${base.content})
+
+          ====
           For example see this sample:
           ${this.perfectTest.code}
           `
-        }, {
+        },
+        {
           role: "user",
           content: `Context:
           Main File Path: ${base.path}
@@ -280,8 +312,8 @@ export class TestGenerator {
           
           
           Respond in JSON format without mardown: {
-            code: string,
-            description: sting
+            "code": "string",
+            "description": "sting",
           }
   
           Special characters must be escaped according to the JSON specification.
@@ -290,7 +322,7 @@ export class TestGenerator {
         temperature: 0.2,
         response_format: { type: 'json_object' },
       });
-  
+
       return this.parseTestCode(response.choices[0].message.content);
     })
     
@@ -304,7 +336,7 @@ export class TestGenerator {
     try {
       const jsonText = extractJson(text);
 
-      return  JSON.parse(jsonText);
+      return JSON.parse(jsonText);
     } catch (error) {
 
       console.info(picocolors.red('I can\'t extract JSON'))
@@ -324,7 +356,6 @@ export class TestGenerator {
             Use fields structure from user data.
             Use JSON with standard, use double quotes for JSON fields, use escaping and correct syntax.
             Respond with JSON without markdown.
-
           `
         }, {
           role: 'user',

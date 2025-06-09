@@ -1,3 +1,11 @@
+// TODO: 
+// 1 Add change generated files with comment
+// 2 Generate correct paths for imports
+// 3 Add manual type test cases. I can manually add test cases for generate code
+// 4 Add manual change test cases. I can manually change generated test cases for generate code
+// 5 Я записываю в файлы тест кейсы, и если человек согласен, он смотрит, меняет, нажимает "да" и мы идем их реализовывать
+// Создавать отдельные файлы и класть рядом к основным, например, code.ts и code.gpt.txt, которые будут служить помощью для генерации кода/тестов
+
 import { CodeAnalyzer } from './analyzer';
 import { TestGenerator } from './test-generator';
 import { ContextManager } from './context';
@@ -8,12 +16,29 @@ import picocolors from 'picocolors';
 import { getSessionUsage } from '../../lib/usage.mts';
 import { SingleBar, Presets } from 'cli-progress'
 import { setTimeout } from 'timers/promises';
+import prompts from 'prompts';
 
 // index.ts
 export async function run(patterns: string[], props: RunProps) {
   // Для того чтоб вывелись все системные сообщения библиотек
   await setTimeout(100);
   debugger
+
+  // const cases = ['qwe', 'asd']
+
+  // const a = await prompts({
+  //   type: 'confirm',
+  //   name: 'qwe',
+  //   message: `
+  //   Do you want change one of the test cases ?
+  //   ${cases.map((item, index) => `\n\t ${index} ${item}`).join('\n')}
+  //   \n`,
+  //   initial: false,
+  // })
+
+  // console.log(a.qwe)
+
+  // return
 
   const contextManager = new ContextManager(props.baseDir);
   const analyzer = new CodeAnalyzer(contextManager, props);
@@ -51,7 +76,7 @@ export async function run(patterns: string[], props: RunProps) {
   await testGenerator.initPerfectTest();
 
   bar.update(4);
-  
+
   let generatedTests = 0;
 
   for (const file of files) {
@@ -59,8 +84,6 @@ export async function run(patterns: string[], props: RunProps) {
     const progressOnStart = bar.value;
 
     try {
-      
-      // const [base, ...other] = await analyzer.resolveContext(file);
       const generator = await analyzer.resolveContext2(file);
 
       let analizeResult: FileContext[]
@@ -107,7 +130,6 @@ export async function run(patterns: string[], props: RunProps) {
       }
       
       const tests = testsResult
-
 
       if (!tests) {
         console.log('Can\'t create tests for ' + file)
