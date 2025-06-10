@@ -96,7 +96,7 @@ export type QuestionFN = (
   }
 ) => string
 
-export type PostProcessFN = (content: string, context: FN_Context) => string
+export type PostProcessFN = (content: string, context: FN_Context) => Promise<string> | string
 // Пример обновленного меню документации с указанием директорий
 const module = (await importUserFile(config)) as {
   question: QuestionFN,
@@ -337,7 +337,7 @@ async function run(){
             if (fileContent) {
               let finalNewFileContent = fileContent
               if (postProcess) {
-                finalNewFileContent = postProcess(fileContent, {
+                finalNewFileContent = await postProcess(fileContent, {
                   item,
                   menupath,
                   history: dontUsePreviousFilesAsContext ? []: history,
